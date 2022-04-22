@@ -1,0 +1,17 @@
+{
+    "name": "ratmine",
+    "version": "1.0.0",
+    "main": "main.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "start": "electron .",
+        "packager": "electron-packager . ratCici --platform=win32 --arch=x64 --overwrite --ignore=node_modules --electron-version=12.0.9 --overwrite --download.mirrorOptions=https://registry.npm.taobao.org/ --icon=img/raticon.ico"
+    },
+    "author": "selleci",
+    "license": "ISC",
+    "description": "rat mine",
+    "devDependencies": {
+        "electron": "^12.0.9",
+        "electron-packager": "^15.2.0"
+    }
+}
