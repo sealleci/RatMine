@@ -1,2 +1,3 @@
-# 鼠雷RatMine
-have fun.
+# 鼠雷 RatMine
+
+Have fun.

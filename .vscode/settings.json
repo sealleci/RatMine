@@ -1,0 +1,9 @@
+{
+    "path-intellisense.mappings": {
+        "@": "${workspaceRoot}/src/"
+    },
+    "less.compile": {
+        "out": "../css/"
+    },
+    "typescript.tsdk": "node_modules/typescript/lib"
+}
