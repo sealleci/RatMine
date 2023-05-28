@@ -1,200 +1,5 @@
 <script setup lang="ts">
 //类
-class HexCoord { //六边形座标
-    constructor(x, y, z) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-    }
-    plus(coord) {
-        return new HexCoord(this.x + coord.x, this.y + coord.y, this.z + coord.z);
-    }
-    equal(coord) {
-        if (this.x == coord.x &&
-            this.y == coord.y &&
-            this.z == coord.z) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-    mapping(size) {
-        return (this.x + size) * 10000 + (this.y + size) * 100 + (this.z + size);
-    }
-    toString() {
-        return `(${this.x}, ${this.y}, ${this.z})`
-    }
-}
-
-class PlainCoord { //平面座标
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-    }
-    plus(coord) {
-        return new PlainCoord(this.x + coord.x, this.y + coord.y);
-    }
-    dot(coord) {
-        return this.x * coord.x + this.y * coord.y;
-    }
-    length() {
-        return Math.sqrt(this.x * this.x + this.y * this.y);
-    }
-}
-
-class Hex { //六边形格子
-    constructor(x, y, z, px, py, step) {
-        this.hexc = new HexCoord(x, y, z);
-        this.plnc = new PlainCoord(px, py);
-        this.step = step;
-        this.type = 0; //0空，1数字，2雷
-        this.surface = 0; //0普通，1激活，2旗子，3藤蔓
-        this.vine = 0; //0无藤蔓，1有藤蔓
-    }
-    draw(base) {
-        let $hex_ele = $(`<div class="hex" id="${this.hexc.mapping(size)}"></div>`);
-        $($hex_ele).css({
-            'height': `${base * 2}px`,
-            'width': `${base * sqrt3}px`,
-            'left': `${this.plnc.x}px`,
-            'top': `${this.plnc.y}px`
-        });
-        $('#mine-field').append($($hex_ele));
-    }
-}
-
-class Rat {
-    constructor(type, speed, tar_hexs, spawn, hihexs, ele) {
-        this.type = type;
-        this.speed = speed;
-        this.tar_hexs = tar_hexs;
-        this.spawn = spawn;
-        this.hihexs = hihexs;
-        this.ele = ele;
-        this.dist = new PlainCoord(
-            this.tar_hexs[0].plnc.x - this.spawn.x + base - $(this.ele).find('img').width() / 2,
-            this.tar_hexs[0].plnc.y - this.spawn.y + base - $(this.ele).find('img').height() / 2
-        );
-        //console.log(this.ele);
-        this.center_hex = this.tar_hexs[0];
-        this.cosx = this.dist.x / Math.sqrt(Math.pow(this.dist.x, 2) + Math.pow(this.dist.y, 2));
-        this.siny = this.dist.y / Math.sqrt(Math.pow(this.dist.x, 2) + Math.pow(this.dist.y, 2));
-        this.cnt = 0;
-        this.finished = false;
-        this.pre_clicked = -1;
-        //console.log(this.cosx, this.siny)
-        // console.log('tar', this.tar_hexs[0].plnc.x, this.tar_hexs[0].plnc.y);
-        // console.log('spawn', this.spawn.x, this.spawn.y);
-        // console.log('dist', this.dist.x, this.dist.y);
-    }
-
-    click() {
-        for (let i in this.tar_hexs) {
-            let t_id = this.tar_hexs[i].hexc.mapping(size);
-            if (this.tar_hexs[i].surface == 2) {
-                unsetFlag(t_id);
-            }
-            if (isClickable(t_id)) {
-                clickCell(t_id);
-            }
-        }
-
-    }
-
-    remove() {
-        for (let i in this.hihexs) {
-            $(this.hihexs[i]).remove();
-        }
-        $(this.ele).remove();
-    }
-
-    isArrived(cur_p) {
-        let img = this.ele.find('img');
-        if (Math.abs(cur_p.x + $(img).width() / 2 - this.center_hex.plnc.x - base) <= $(img).width() / 2 &&
-            Math.abs(cur_p.y + $(img).height() / 2 - this.center_hex.plnc.y - base) <= $(img).height() / 2
-        ) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-    run(run_intv) {
-        this.cnt++;
-
-        let cur_p = new PlainCoord(
-            this.spawn.x + (this.speed * this.cosx) * run_intv / 1000 * this.cnt,
-            this.spawn.y + (this.speed * this.siny) * run_intv / 1000 * this.cnt
-        );
-
-        // console.log(this.cosx, this.siny);
-
-        $(this.ele).css({
-            'left': `${cur_p.x}px`,
-            'top': `${cur_p.y}px`,
-        });
-
-        let remain_hexs = 0;
-        for (let i in this.tar_hexs) {
-            if (this.tar_hexs[i].surface != 1) {
-                remain_hexs++;
-            }
-        }
-
-        let clicked_flag = false;
-        let cur_clicked = parseInt($(this.ele).data('clicked'));
-        switch (this.type) {
-            case 0:
-                if (this.pre_clicked != cur_clicked) {
-                    this.pre_clicked = cur_clicked;
-                    $(this.ele).find('span').text(lilrat_clicks - cur_clicked);
-                }
-                if (cur_clicked >= lilrat_clicks) {
-                    clicked_flag = true;
-                }
-                break;
-            case 1:
-                if (this.pre_clicked != cur_clicked) {
-                    this.pre_clicked = cur_clicked;
-                    $(this.ele).find('span').text(bigrat_clicks - cur_clicked);
-                }
-                if (cur_clicked >= bigrat_clicks) {
-                    clicked_flag = true;
-                }
-                break;
-            default:
-                break;
-        }
-        if (remain_hexs == 0 || clicked_flag) {
-            this.finished = true;
-        }
-
-        if (this.isArrived(cur_p)) {
-            this.click();
-            this.finished = true;
-        }
-
-        if (this.finished) {
-            this.remove();
-        }
-    }
-}
-
-class Hint {
-    constructor(id) {
-        this.id = id;
-        this.idx = hexs_mp.indexOf(this.id);
-        this.cnt = 0;
-        this.finished = false;
-    }
-    run() {
-        if (this.cnt >= hint_long / hint_tick_intv || hexs[this.idx].surface != 0) {
-            $(`#${this.id}`).removeClass('hex-shake');
-            this.finished = true;
-        } else {
-            this.cnt++;
-        }
-    }
-}
 
 function bfs(px, py, size) { //生成棋盘
     let cent = new Hex(0, 0, 0, px, py, 0);
@@ -240,7 +45,7 @@ function getInitMineFreeArea(id) {
         let t_cell = cur_cell;
         for (let j = 0; j < ext; ++j) {
             t_cell = t_cell.plus(hex_dirs[i]);
-            let t_id = t_cell.mapping(size);
+            let t_id = t_cell.getId(size);
             let t_idx = hexs_mp.indexOf(t_id);
             if (t_idx != -1) {
                 if (isClickable(t_id)) {
@@ -258,7 +63,7 @@ function getInitMineFreeArea(id) {
                 let fdirs = [(ii + 1) % hex_dirs.length, (ii + 5) % hex_dirs.length];
                 for (let k in fdirs) {
                     let f_cell = t_cell.plus(hex_dirs[fdirs[k]]);
-                    let f_id = f_cell.mapping(size);
+                    let f_id = f_cell.getId(size);
                     let f_idx = hexs_mp.indexOf(f_id);
                     if (f_idx != -1) {
                         if (isClickable(f_id)) {
@@ -303,7 +108,7 @@ function signNumber() { //标数字
         for (let j in hex_dirs) {
             let t_hex_mp = hex_dirs[j].plus(
                 parseId(mines_mp[i], size)
-            ).mapping(size);
+            ).getId(size);
 
             if (hexs_mp.indexOf(t_hex_mp) != -1 &&
                 mines_mp.indexOf(t_hex_mp) == -1
@@ -414,7 +219,7 @@ function expandSpaces(id) { //点空白扩展
     let map = {};
 
     q.push(chexc);
-    map[chexc.mapping(size)] = 1;
+    map[chexc.getId(size)] = 1;
 
     while (q.length != 0) {
         let t = q.shift();
@@ -488,7 +293,7 @@ function hoverArea(id, isflag = false) {
 
     for (let i in hex_dirs) {
         let t_cell = cur_cell.plus(hex_dirs[i]);
-        let t_id = t_cell.mapping(size);
+        let t_id = t_cell.getId(size);
         let t_idx = hexs_mp.indexOf(t_id);
 
         if (t_idx != -1) { //&& isClickable(t_id)
@@ -515,7 +320,7 @@ function inferArea(id) {
 
     for (let i in hex_dirs) {
         let t_cell = cur_cell.plus(hex_dirs[i]);
-        let t_map = t_cell.mapping(size);
+        let t_map = t_cell.getId(size);
         let t_idx = hexs_mp.indexOf(t_map);
         if (t_idx == -1) {
             continue;
@@ -554,7 +359,7 @@ function inferArea(id) {
 
             for (let i in hex_dirs) {
                 let t_cell = cur_cell.plus(hex_dirs[i]);
-                let t_map = t_cell.mapping(size);
+                let t_map = t_cell.getId(size);
                 let t_idx = hexs_mp.indexOf(t_map);
                 if (t_idx == -1) {
                     continue;
@@ -619,7 +424,7 @@ function hoverRelease(id) {
     $(`#${id}`).removeClass('hex-active-press');
 
     for (let i in hover_hexs) {
-        $(`#${hover_hexs[i].mapping(size)}`).removeClass('hex-hover');
+        $(`#${hover_hexs[i].getId(size)}`).removeClass('hex-hover');
     }
 }
 
@@ -634,7 +439,7 @@ function hoverAct(id) {
     $(`#${id}`).addClass('hex-active-press');
 
     for (let i in hover_hexs) {
-        $(`#${hover_hexs[i].mapping(size)}`).addClass('hex-hover');
+        $(`#${hover_hexs[i].getId(size)}`).addClass('hex-hover');
     }
 }
 
@@ -784,11 +589,11 @@ function clickOfRat(id) {
 
 function getRotateImgAng(org, tar, bgn, tar_size, bgn_size) {
     let org_v = org;
-    let tar_v = new PlainCoord(
+    let tar_v = new PlainCoordinate(
         tar.x - bgn.x + tar_size.x / 2 - bgn_size.x / 2,
         tar.y - bgn.y + tar_size.y / 2 - bgn_size.y / 2
     );
-    let ang = Math.acos(org_v.dot(tar_v) / (org_v.length() * tar_v.length())) * 180 / Math.PI;
+    let ang = Math.acos(org_v.dot(tar_v) / (org_v.length() * tar_v.getDistence())) * 180 / Math.PI;
     if (tar_v.x - org_v.x > 0) {
         ang = -ang;
     }
@@ -815,7 +620,7 @@ function genRat(type) {
         if (isHover) {
             let hover_hexs = hoverArea(hexs[rnd_arr[rnd_i]].hexc.mapping(size), true);
             for (let i in hover_hexs) {
-                let t_idx = hexs_mp.indexOf(hover_hexs[i].mapping(size));
+                let t_idx = hexs_mp.indexOf(hover_hexs[i].getId(size));
                 if (t_idx != -1) {
                     slt_hexs.push(hexs[t_idx]);
                 }
@@ -847,7 +652,7 @@ function genRat(type) {
             'left': `${spwn.x}px`,
             'top': `${spwn.y}px`
         });
-        $($rat).children('img').css('transform', `rotate(${getRotateImgAng(defaultImgDir, tar, spwn, new PlainCoord(base * 2, base * 2), new PlainCoord(w, h))}deg)`);
+        $($rat).children('img').css('transform', `rotate(${getRotateImgAng(defaultImgDir, tar, spwn, new PlainCoordinate(base * 2, base * 2), new PlainCoordinate(w, h))}deg)`);
         $($rat).data('clicked', 0);
         $($rat).on('click', function () {
             let cur = parseInt($($rat).data('clicked'));
@@ -866,15 +671,15 @@ function genRat(type) {
         //let stage_top = $('#whole-stage').offset().top;
         let l = -$('#main-stage').width() / 2 - 150;
         let t = rangeRnd(0, 0 + 14 * draw_base);
-        return new PlainCoord(l, t);
+        return new PlainCoordinate(l, t);
     }
     let this_rat = rat_type_dic[type];
     let diff = draw_base - base;
-    let tar = new PlainCoord(5, 5);
-    let spwn = new PlainCoord(5, 5);
+    let tar = new PlainCoordinate(5, 5);
+    let spwn = new PlainCoordinate(5, 5);
     let s_hex = selectHexs(this_rat['tars'] === 1 ? false : true);
     if (s_hex.length > 0) {
-        tar = new PlainCoord(s_hex[0].plnc.x, s_hex[0].plnc.y);
+        tar = new PlainCoordinate(s_hex[0].plnc.x, s_hex[0].plnc.y);
         spwn = getSpawn(tar);
         let $hihex = [];
         for (let i in s_hex) {
@@ -942,7 +747,7 @@ function calcHexCnt(e_size) {
 }
 
 function parseId(id, size) {
-    return new HexCoord(Math.floor(id / 10000) - size, (Math.floor(id / 100) % 100) - size, (id % 100) - size);
+    return new HexCoordinate(Math.floor(id / 10000) - size, (Math.floor(id / 100) % 100) - size, (id % 100) - size);
 }
 
 function isClickable(id) {
@@ -1203,20 +1008,20 @@ var sqrt2 = Math.sqrt(2);
 
 //方向
 var hex_dirs = [
-    new HexCoord(-1, 0, 1),
-    new HexCoord(0, -1, 1),
-    new HexCoord(1, -1, 0),
-    new HexCoord(1, 0, -1),
-    new HexCoord(0, 1, -1),
-    new HexCoord(-1, 1, 0)
+    new HexCoordinate(-1, 0, 1),
+    new HexCoordinate(0, -1, 1),
+    new HexCoordinate(1, -1, 0),
+    new HexCoordinate(1, 0, -1),
+    new HexCoordinate(0, 1, -1),
+    new HexCoordinate(-1, 1, 0)
 ];
 var plain_dirs = [
-    new PlainCoord(-sqrt3 / 2 * draw_base, -3 / 2 * draw_base),
-    new PlainCoord(sqrt3 / 2 * draw_base, -3 / 2 * draw_base),
-    new PlainCoord(sqrt3 * draw_base, 0),
-    new PlainCoord(sqrt3 / 2 * draw_base, 3 / 2 * draw_base),
-    new PlainCoord(-sqrt3 / 2 * draw_base, 3 / 2 * draw_base),
-    new PlainCoord(-sqrt3 * draw_base, 0)
+    new PlainCoordinate(-sqrt3 / 2 * draw_base, -3 / 2 * draw_base),
+    new PlainCoordinate(sqrt3 / 2 * draw_base, -3 / 2 * draw_base),
+    new PlainCoordinate(sqrt3 * draw_base, 0),
+    new PlainCoordinate(sqrt3 / 2 * draw_base, 3 / 2 * draw_base),
+    new PlainCoordinate(-sqrt3 / 2 * draw_base, 3 / 2 * draw_base),
+    new PlainCoordinate(-sqrt3 * draw_base, 0)
 ];
 
 //时间
@@ -1283,7 +1088,7 @@ var hint_timer = undefined; //提示计时器
 
 //图像
 var img_base_root = './img';
-var defaultImgDir = new PlainCoord(0, 1);
+var defaultImgDir = new PlainCoordinate(0, 1);
 var rat_type_dic = {
     0: { 'img_file': 'lil_rat.svg', 'speed': 120, 'tars': 1, 'mul': 1.5 },
     1: { 'img_file': 'big_rat.svg', 'speed': 150, 'tars': 7, 'mul': 2.5 }
