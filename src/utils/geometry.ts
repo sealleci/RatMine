@@ -12,9 +12,6 @@ abstract class AbstractCoordinate {
     abstract toString(): string
 }
 
-/**
- * 平面座标
- */
 class PlainCoordinate extends AbstractCoordinate {
     constructor(x: number, y: number) {
         super(x, y)
@@ -48,9 +45,6 @@ class PlainCoordinate extends AbstractCoordinate {
     }
 }
 
-/**
- * 六边形座标
- */
 class HexCoordinate extends AbstractCoordinate {
     public z: number
 

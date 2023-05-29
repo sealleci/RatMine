@@ -1,38 +1,6 @@
 <script setup lang="ts">
 //类
 
-function bfs(px, py, size) { //生成棋盘
-    let cent = new Hex(0, 0, 0, px, py, 0);
-    let q = [];
-    let cells = [];
-    let map = {};
-
-    q.push(cent);
-    map[cent.hexc.mapping(size)] = 1;
-
-    while (q.length != 0) {
-        let t = q.shift();
-        cells.push(t);
-        t.draw(base);
-
-        for (let i in hex_dirs) {
-            let hexc = t.hexc.plus(hex_dirs[i]);
-
-            if (!isin(hexc, map)) {
-                let step = t.step + 1;
-
-                if (step <= size) {
-                    map[hexc.mapping(size)] = 1;
-
-                    let plnc = t.plnc.plus(plain_dirs[i]);
-                    q.push(new Hex(hexc.x, hexc.y, hexc.z, plnc.x, plnc.y, step));
-                }
-            }
-        }
-    }
-
-    return cells;
-}
 
 function getInitMineFreeArea(id) {
     let cells = [];
