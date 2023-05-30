@@ -22,7 +22,7 @@ function sleep(ms: number) {
  * rangeRandom(1, 10) // value in [1, 10]
  * ```
  */
-function rangeRoll(min: number, max?: number): number {
+function rollRange(min: number, max?: number): number {
     if (max === undefined) {
         max = min - 1
         min = 0
@@ -37,16 +37,16 @@ function rangeRoll(min: number, max?: number): number {
 
 /**
  * Add the prefix to the given string to reach the target length.
- * @param targetLength The expected length of string after padding.
- * @param padString The prefix for padding.
+ * @param target_len The expected length of string after padding.
+ * @param pad_str The prefix for padding.
  */
-function padLeft(text: string, targetLength: number, padString: string): string {
+function padLeft(text: string, target_len: number, pad_str: string): string {
     let padding = ''
 
-    while (text.length + padding.length < targetLength) {
-        padding += padString.substring(
+    while (text.length + padding.length < target_len) {
+        padding += pad_str.substring(
             0,
-            Math.min(padString.length, targetLength - (text.length + padding.length)))
+            Math.min(pad_str.length, target_len - (text.length + padding.length)))
     }
 
     return padding + text
@@ -54,23 +54,23 @@ function padLeft(text: string, targetLength: number, padString: string): string 
 
 /**
  * Add the suffix to the given string to reach the target length.
- * @param targetLength The expected length of string after padding.
- * @param padString The suffix for padding.
+ * @param target_len The expected length of string after padding.
+ * @param pad_str The suffix for padding.
  */
-function padRight(text: string, targetLength: number, padString: string): string {
+function padRight(text: string, target_len: number, pad_str: string): string {
     let padding = ''
 
-    while (text.length + padding.length < targetLength) {
-        padding += padString.substring(
+    while (text.length + padding.length < target_len) {
+        padding += pad_str.substring(
             0,
-            Math.min(padString.length, targetLength - (text.length + padding.length)))
+            Math.min(pad_str.length, target_len - (text.length + padding.length)))
     }
 
     return text + padding
 }
 
 /**
- * convert the given seconds to the time string.
+ * Convert the given seconds to the time string.
  * @returns The string presents the time with the "mm:ss" format.
  * 
  * Usage:
@@ -82,5 +82,17 @@ function convertSecondsToTime(seconds: number): string {
     return `${padLeft(Math.floor(seconds / 60).toString(), 2, '0')}:${padLeft(Math.floor(seconds % 60).toString(), 2, '0')}`
 }
 
-export { sleep, rangeRoll }
-export { padLeft, padRight, convertSecondsToTime }
+/**
+ * Return a new array with the unique elements from the given array.
+ * 
+ * Usage:
+ * ``` js
+ * uniqueArray([1, 2, 3, 2, 1]) // [1, 2, 3]
+ * ```
+ */
+function uniqueArray<T>(array: T[]): T[] {
+    return Array.from(new Set(array))
+}
+
+export { convertSecondsToTime, padLeft, padRight, rollRange, sleep, uniqueArray }
+

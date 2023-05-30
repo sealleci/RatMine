@@ -557,7 +557,7 @@ function clickOfRat(id) {
 
 function getRotateImgAng(org, tar, bgn, tar_size, bgn_size) {
     let org_v = org;
-    let tar_v = new PlainCoordinate(
+    let tar_v = new PlaneVectorinate(
         tar.x - bgn.x + tar_size.x / 2 - bgn_size.x / 2,
         tar.y - bgn.y + tar_size.y / 2 - bgn_size.y / 2
     );
@@ -620,7 +620,7 @@ function genRat(type) {
             'left': `${spwn.x}px`,
             'top': `${spwn.y}px`
         });
-        $($rat).children('img').css('transform', `rotate(${getRotateImgAng(defaultImgDir, tar, spwn, new PlainCoordinate(base * 2, base * 2), new PlainCoordinate(w, h))}deg)`);
+        $($rat).children('img').css('transform', `rotate(${getRotaRotateImgAng(defaultImgDir, tar, spwn, new PlaneVectorinate(base * 2, base * 2), new PlaneVectorinate(w, h))}deg)`);
         $($rat).data('clicked', 0);
         $($rat).on('click', function () {
             let cur = parseInt($($rat).data('clicked'));
@@ -632,22 +632,22 @@ function genRat(type) {
     }
 
     function getSpawn(tar) {
-        //let spwn = new PlainCoord(5, 5);
-        // let org_id = (new HexCoord(0, 0, 0)).mapping(size);
+        //let spwn = new PlaneVector(5, 5);
+        // let org_id = (new HexVector(0, 0, 0)).mapping(size);
         // let ohex = hexs[hexs_mp.indexOf(org_id)];
-        // let sym = new PlainCoord(Math.max(2 * (ohex.plnc.x - tar.x) + tar.x, 0), Math.max(2 * (ohex.plnc.y - tar.y) + tar.y, 0));
+        // let sym = new PlaneVector(Math.max(2 * (ohex.plnc.x - tar.x) + tar.x, 0), Math.max(2 * (ohex.plnc.y - tar.y) + tar.y, 0));
         //let stage_top = $('#whole-stage').offset().top;
         let l = -$('#main-stage').width() / 2 - 150;
         let t = rangeRnd(0, 0 + 14 * draw_base);
-        return new PlainCoordinate(l, t);
+        return new PlaneVectorinate(l, t);
     }
     let this_rat = rat_type_dic[type];
     let diff = draw_base - base;
-    let tar = new PlainCoordinate(5, 5);
-    let spwn = new PlainCoordinate(5, 5);
+    let tar = new PlaneVectorinate(5, 5);
+    let spwn = new PlaneVectorinate(5, 5);
     let s_hex = selectHexs(this_rat['tars'] === 1 ? false : true);
     if (s_hex.length > 0) {
-        tar = new PlainCoordinate(s_hex[0].plnc.x, s_hex[0].plnc.y);
+        tar = new PlaneVectorinate(s_hex[0].plnc.x, s_hex[0].plnc.y);
         spwn = getSpawn(tar);
         let $hihex = [];
         for (let i in s_hex) {
@@ -681,17 +681,6 @@ function tick() {
 }
 
 //工具函数
-function sleep(time) {
-    return new Promise((resolve) => setTimeout(resolve, time));
-}
-
-function rangeRnd(a, b) {
-    return Math.abs(Math.floor(Math.random() * (b - a + 1) + a));
-}
-
-function unique(arr) {
-    return Array.from(new Set(arr))
-}
 
 function calcTime(cur, base) {
     let mins = Math.floor((cur * base) / (1000 * 60));
@@ -715,7 +704,7 @@ function calcHexCnt(e_size) {
 }
 
 function parseId(id, size) {
-    return new HexCoordinate(Math.floor(id / 10000) - size, (Math.floor(id / 100) % 100) - size, (id % 100) - size);
+    return new HexVectorinate(Math.floor(id / 10000) - size, (Math.floor(id / 100) % 100) - size, (id % 100) - size);
 }
 
 function isClickable(id) {
@@ -741,20 +730,6 @@ function isFlagable(id) {
     ) {
         return true;
     } else {
-        return false;
-    }
-}
-
-function isin(hexc, map) {
-    let i = hexc.mapping(size);
-    if (i in map) {
-        if (map[i] == 1) {
-            return true
-        } else {
-            return false;
-        }
-    } else {
-        map[i] = 0;
         return false;
     }
 }
@@ -976,20 +951,20 @@ var sqrt2 = Math.sqrt(2);
 
 //方向
 var hex_dirs = [
-    new HexCoordinate(-1, 0, 1),
-    new HexCoordinate(0, -1, 1),
-    new HexCoordinate(1, -1, 0),
-    new HexCoordinate(1, 0, -1),
-    new HexCoordinate(0, 1, -1),
-    new HexCoordinate(-1, 1, 0)
+    new HexVectorinate(-1, 0, 1),
+    new HexVectorinate(0, -1, 1),
+    new HexVectorinate(1, -1, 0),
+    new HexVectorinate(1, 0, -1),
+    new HexVectorinate(0, 1, -1),
+    new HexVectorinate(-1, 1, 0)
 ];
-var plain_dirs = [
-    new PlainCoordinate(-sqrt3 / 2 * draw_base, -3 / 2 * draw_base),
-    new PlainCoordinate(sqrt3 / 2 * draw_base, -3 / 2 * draw_base),
-    new PlainCoordinate(sqrt3 * draw_base, 0),
-    new PlainCoordinate(sqrt3 / 2 * draw_base, 3 / 2 * draw_base),
-    new PlainCoordinate(-sqrt3 / 2 * draw_base, 3 / 2 * draw_base),
-    new PlainCoordinate(-sqrt3 * draw_base, 0)
+var plane_dirs = [
+    new PlaneVectorinate(-sqrt3 / 2 * draw_base, -3 / 2 * draw_base),
+    new PlaneVectorinate(sqrt3 / 2 * draw_base, -3 / 2 * draw_base),
+    new PlaneVectorinate(sqrt3 * draw_base, 0),
+    new PlaneVectorinate(sqrt3 / 2 * draw_base, 3 / 2 * draw_base),
+    new PlaneVectorinate(-sqrt3 / 2 * draw_base, 3 / 2 * draw_base),
+    new PlaneVectorinate(-sqrt3 * draw_base, 0)
 ];
 
 //时间
@@ -1056,7 +1031,7 @@ var hint_timer = undefined; //提示计时器
 
 //图像
 var img_base_root = './img';
-var defaultImgDir = new PlainCoordinate(0, 1);
+var defaultImgDir = new PlaneVectorinate(0, 1);
 var rat_type_dic = {
     0: { 'img_file': 'lil_rat.svg', 'speed': 120, 'tars': 1, 'mul': 1.5 },
     1: { 'img_file': 'big_rat.svg', 'speed': 150, 'tars': 7, 'mul': 2.5 }

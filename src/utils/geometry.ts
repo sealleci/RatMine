@@ -1,4 +1,4 @@
-abstract class AbstractCoordinate {
+abstract class AbstractVector {
     public x: number
     public y: number
 
@@ -7,24 +7,24 @@ abstract class AbstractCoordinate {
         this.y = y
     }
 
-    abstract plus(coordinate: AbstractCoordinate): AbstractCoordinate
-    abstract isEqual(coordinate: AbstractCoordinate): boolean
+    abstract plus(coord: AbstractVector): AbstractVector
+    abstract isEqual(coord: AbstractVector): boolean
     abstract toString(): string
 }
 
-class PlainCoordinate extends AbstractCoordinate {
+class PlaneVector extends AbstractVector {
     constructor(x: number, y: number) {
         super(x, y)
     }
 
-    plus(coordinate: PlainCoordinate): PlainCoordinate {
-        return new PlainCoordinate(this.x + coordinate.x, this.y + coordinate.y)
+    plus(coord: PlaneVector): PlaneVector {
+        return new PlaneVector(this.x + coord.x, this.y + coord.y)
     }
 
-    isEqual(coordinate: PlainCoordinate): boolean {
+    isEqual(coord: PlaneVector): boolean {
         if (
-            this.x == coordinate.x &&
-            this.y == coordinate.y
+            this.x == coord.x &&
+            this.y == coord.y
         ) {
             return true
         } else {
@@ -32,11 +32,11 @@ class PlainCoordinate extends AbstractCoordinate {
         }
     }
 
-    dot(coordinate: PlainCoordinate): number {
-        return this.x * coordinate.x + this.y * coordinate.y
+    dot(coord: PlaneVector): number {
+        return this.x * coord.x + this.y * coord.y
     }
 
-    getDistance(): number {
+    getNorm(): number {
         return Math.sqrt(this.x * this.x + this.y * this.y)
     }
 
@@ -45,7 +45,7 @@ class PlainCoordinate extends AbstractCoordinate {
     }
 }
 
-class HexCoordinate extends AbstractCoordinate {
+class HexVector extends AbstractVector {
     public z: number
 
     constructor(x: number, y: number, z: number) {
@@ -53,15 +53,15 @@ class HexCoordinate extends AbstractCoordinate {
         this.z = z
     }
 
-    plus(coordinate: HexCoordinate): HexCoordinate {
-        return new HexCoordinate(this.x + coordinate.x, this.y + coordinate.y, this.z + coordinate.z)
+    plus(coord: HexVector): HexVector {
+        return new HexVector(this.x + coord.x, this.y + coord.y, this.z + coord.z)
     }
 
-    isEqual(coordinate: HexCoordinate): boolean {
+    isEqual(coord: HexVector): boolean {
         if (
-            this.x == coordinate.x &&
-            this.y == coordinate.y &&
-            this.z == coordinate.z
+            this.x == coord.x &&
+            this.y == coord.y &&
+            this.z == coord.z
         ) {
             return true
         } else {
@@ -69,8 +69,13 @@ class HexCoordinate extends AbstractCoordinate {
         }
     }
 
-    getMappingId(size: number): string {
-        return `${this.x + size}_${this.y + size}_${this.z + size}`
+    getId(): string {
+        return `${this.x}_${this.y}_${this.z}`
+    }
+
+    static parseId(id: string): HexVector {
+        const [x, y, z] = id.split('_').map(component => parseInt(component))
+        return new HexVector(x, y, z)
     }
 
     toString(): string {
@@ -78,4 +83,20 @@ class HexCoordinate extends AbstractCoordinate {
     }
 }
 
-export { HexCoordinate, PlainCoordinate }
+function convertHexVectorToPlaneVector(hex_coord: HexVector, hex_tile_radius: number): PlaneVector {
+    return new PlaneVector(
+        Math.sqrt(3) * (hex_coord.x + hex_coord.z / 2) * hex_tile_radius,
+        - 3 / 2 * hex_coord.z * hex_tile_radius
+    )
+}
+
+const HEX_DIRECTION_LIST = [
+    new HexVector(-1, 0, 1),
+    new HexVector(0, -1, 1),
+    new HexVector(1, -1, 0),
+    new HexVector(1, 0, -1),
+    new HexVector(0, 1, -1),
+    new HexVector(-1, 1, 0)
+]
+
+export { HEX_DIRECTION_LIST, HexVector, PlaneVector, convertHexVectorToPlaneVector }
