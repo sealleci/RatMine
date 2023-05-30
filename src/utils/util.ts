@@ -83,6 +83,24 @@ function convertSecondsToTime(seconds: number): string {
 }
 
 /**
+ * Convert the given ticks to the time string.
+ * 
+ * @param tick - The number of ticks.
+ * @param interval - The interval between ticks.
+ * 
+ * Usage:
+ * ``` js
+ * convertTicksToTime(70, 1000) // "01:10"
+ * ```
+ */
+function convertTicksToTime(tick: number, interval: number): string {
+    const minute = Math.floor((tick * interval) / (1000 * 60))
+    const second = Math.floor((tick * interval) / 1000) % 60
+
+    return `${minute < 10 ? 0 : ''}${minute}:${second < 10 ? 0 : ''}${second}`
+}
+
+/**
  * Return a new array with the unique elements from the given array.
  * 
  * Usage:

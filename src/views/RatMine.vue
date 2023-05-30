@@ -682,58 +682,6 @@ function tick() {
 
 //工具函数
 
-function calcTime(cur, base) {
-    let mins = Math.floor((cur * base) / (1000 * 60));
-    let secs = Math.floor((cur * base) / 1000) % 60;
-    return `${mins < 10 ? 0 : ''}${mins}:${secs < 10 ? 0 : ''}${secs}`;
-}
-
-function calcHexCnt(e_size) {
-    if (e_size < 1) {
-        return 0;
-    }
-    if (e_size == 1) {
-        return 1;
-    }
-    if (e_size == 2) {
-        return 7;
-    }
-    let sums = 1;
-    sums += Math.round((6 + (e_size - 1) * 6) * (e_size - 1) / 2);
-    return sums;
-}
-
-function parseId(id, size) {
-    return new HexVectorinate(Math.floor(id / 10000) - size, (Math.floor(id / 100) % 100) - size, (id % 100) - size);
-}
-
-function isClickable(id) {
-    let idx = hexs_mp.indexOf(id);
-    if (idx == -1) {
-        return false;
-    }
-    if (hexs[idx].surface == 0 || hexs[idx].surface == 3) {
-        return true;
-    } else {
-        return false;
-    }
-}
-
-function isFlagable(id) {
-    let idx = hexs_mp.indexOf(id);
-    if (idx == -1) {
-        return false;
-    }
-    if (hexs[idx].surface == 0 ||
-        hexs[idx].surface == 3 ||
-        hexs[idx].surface == 2
-    ) {
-        return true;
-    } else {
-        return false;
-    }
-}
-
 function revealAll() {
     for (let i in mines_mp) {
         $(`#${mines_mp[i]}`).text('鼠雷');

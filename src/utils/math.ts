@@ -26,4 +26,15 @@ function calcRotationAngle(
     return angle
 }
 
-export { calcRotationAngle }
+/**
+ * Calculate the number of hex tiles by the given size of the board.
+ */
+function calcHexNum(size: number): number {
+    if (size < 1) { return 0 }
+    if (size === 1) { return 1 }
+    if (size === 2) { return 7 }
+
+    return 1 + Math.round((6 + (size - 1) * 6) * (size - 1) / 2)
+}
+
+export { calcHexNum, calcRotationAngle }

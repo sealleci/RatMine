@@ -23,7 +23,7 @@ abstract class AbstractMovingRat extends AbstractRat {
     protected target_hex_tile_num: number
     protected size_multiplier: number
     protected target_hex_tile_list: AbstractHexTile[]
-    protected readonly spawn_coord: PlaneVector
+    protected readonly origin_coord: PlaneVector
     protected highlight_hex_tile_elm_list: HTMLElement[]
     protected readonly elm: HTMLElement
     protected readonly img_elm: HTMLImageElement
@@ -42,7 +42,7 @@ abstract class AbstractMovingRat extends AbstractRat {
         target_hex_tile_num: number,
         size_multiplier: number,
         elm: HTMLElement,
-        spawn_coord: PlaneVector,
+        origin_coord: PlaneVector,
         target_hex_tile_list: AbstractHexTile[],
         highlight_hex_tile_elm_list: HTMLElement[],
     ) {
@@ -54,7 +54,7 @@ abstract class AbstractMovingRat extends AbstractRat {
         this.elm = elm
         this.img_elm = this.elm.querySelector('img') ?? document.createElement('img')
         this.target_hex_tile_list = target_hex_tile_list
-        this.spawn_coord = spawn_coord
+        this.origin_coord = origin_coord
         this.highlight_hex_tile_elm_list = highlight_hex_tile_elm_list
         this.center_hex_tile = this.target_hex_tile_list[0]
         this.tick = 0
@@ -99,14 +99,14 @@ abstract class AbstractMovingRat extends AbstractRat {
 
     run(run_interval: number) {
         const distance: PlaneVector = new PlaneVector(
-            this.center_hex_tile.plane_coord.x - this.spawn_coord.x + MineBoard.HEX_TILE_RADIUS - this.img_elm.width / 2,
-            this.center_hex_tile.plane_coord.y - this.spawn_coord.y + MineBoard.HEX_TILE_RADIUS - this.img_elm.height / 2
+            this.center_hex_tile.plane_coord.x - this.origin_coord.x + MineBoard.HEX_TILE_RADIUS - this.img_elm.width / 2,
+            this.center_hex_tile.plane_coord.y - this.origin_coord.y + MineBoard.HEX_TILE_RADIUS - this.img_elm.height / 2
         )
         const cos_x: number = distance.x / Math.sqrt(Math.pow(distance.x, 2) + Math.pow(distance.y, 2))
         const sin_y: number = distance.y / Math.sqrt(Math.pow(distance.x, 2) + Math.pow(distance.y, 2))
         const cur_pos: PlaneVector = new PlaneVector(
-            this.spawn_coord.x + (this.speed * cos_x) * run_interval / 1000 * this.tick,
-            this.spawn_coord.y + (this.speed * sin_y) * run_interval / 1000 * this.tick
+            this.origin_coord.x + (this.speed * cos_x) * run_interval / 1000 * this.tick,
+            this.origin_coord.y + (this.speed * sin_y) * run_interval / 1000 * this.tick
         )
         let remaining_hex_tile_num: number = 0
         let is_required_click_cnt_reached: boolean = false
@@ -149,13 +149,13 @@ abstract class AbstractMovingRat extends AbstractRat {
 class LilRat extends AbstractMovingRat {
     constructor(
         target_hex_tile_list: AbstractHexTile[],
-        spawn_coord: PlaneVector,
+        origin_coord: PlaneVector,
         highlight_hex_tile_elm_list: HTMLElement[],
         elm: HTMLElement,
     ) {
         super(
             RatType.LIL_RAT, LIL_RAT_IMG, 120, 3, 1, 1.5,
-            elm, spawn_coord, target_hex_tile_list, highlight_hex_tile_elm_list
+            elm, origin_coord, target_hex_tile_list, highlight_hex_tile_elm_list
         )
     }
 }
@@ -163,13 +163,13 @@ class LilRat extends AbstractMovingRat {
 class BigRat extends AbstractMovingRat {
     constructor(
         target_hex_tile_list: AbstractHexTile[],
-        spawn_coord: PlaneVector,
+        origin_coord: PlaneVector,
         highlight_hex_tile_elm_list: HTMLElement[],
         elm: HTMLElement,
     ) {
         super(
             RatType.BIG_RAT, BIG_RAT_IMG, 150, 10, 7, 2.5,
-            elm, spawn_coord, target_hex_tile_list, highlight_hex_tile_elm_list
+            elm, origin_coord, target_hex_tile_list, highlight_hex_tile_elm_list
         )
     }
 }
