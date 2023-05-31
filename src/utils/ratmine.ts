@@ -16,15 +16,15 @@ class Game {
     }
 
     processAfterFirstClick(first_hex_tile_id: string) {
-        this.mine_board.generateMines(this.mine_num, first_hex_tile_id)
-        this.mine_board.signNum()
+        this.mine_board.genMines(this.mine_num, first_hex_tile_id)
+        this.mine_board.markNum()
         this.initTimers()
     }
 
     render() {
-        this.mine_board.generateBlankBoard(0, 0)
+        this.mine_board.genBlankBoard(0, 0)
 
-        for (const hex_tile of this.mine_board.hex_tile_list) {
+        for (const hex_tile of this.mine_board.getHexTiles()) {
             const hex_tile_elm = hex_tile.getElm()
 
             if (!hex_tile_elm) { continue }

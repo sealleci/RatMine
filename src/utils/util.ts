@@ -18,8 +18,8 @@ function sleep(ms: number) {
  * 
  * Usage:
  * ``` js
- * rangeRandom(5) // value in [0, 5)
- * rangeRandom(1, 10) // value in [1, 10]
+ * rollRange(5) // value in [0, 5)
+ * rollRange(1, 10) // value in [1, 10]
  * ```
  */
 function rollRange(min: number, max?: number): number {

@@ -111,21 +111,43 @@ class BlankHexTile extends AbstractHexTile {
         super(TileType.BLANK, hex_x, hex_y, hex_z, plane_x, plane_y, step)
     }
 
+    static isCertainType(tile: AbstractHexTile): tile is BlankHexTile {
+        return tile.type === TileType.BLANK
+    }
+
     click() { }
 
     hover() { }
 }
 
-class NumberHexTile extends AbstractHexTile {
-    public readonly num: number
+class NumHexTile extends AbstractHexTile {
+    accessor num: number
 
     constructor(hex_x: number, hex_y: number, hex_z: number, plane_x: number, plane_y: number, step: number, num: number) {
         super(TileType.NUMBER, hex_x, hex_y, hex_z, plane_x, plane_y, step)
         this.num = num
     }
 
-    static isCertainType(tile: AbstractHexTile): tile is NumberHexTile {
+    static isCertainType(tile: AbstractHexTile): tile is NumHexTile {
         return tile.type === TileType.MINE
+    }
+
+    static constructFrom(hex_tile: AbstractHexTile, num: number): NumHexTile {
+        const new_hex_tile = new NumHexTile(
+            hex_tile.hex_coord.x,
+            hex_tile.hex_coord.y,
+            hex_tile.hex_coord.z,
+            hex_tile.plane_coord.x,
+            hex_tile.plane_coord.y,
+            hex_tile.step,
+            num
+        )
+
+        new_hex_tile.elm = hex_tile.getElm()
+        new_hex_tile.surface_type = hex_tile.getSurfaceType()
+        new_hex_tile.is_vine = hex_tile.isVine()
+
+        return new_hex_tile
     }
 
     click() { }
@@ -138,6 +160,23 @@ class MineHexTile extends AbstractHexTile {
         super(TileType.MINE, hex_x, hex_y, hex_z, plane_x, plane_y, step)
     }
 
+    static constructFrom(hex_tile: AbstractHexTile): MineHexTile {
+        const new_hex_tile = new MineHexTile(
+            hex_tile.hex_coord.x,
+            hex_tile.hex_coord.y,
+            hex_tile.hex_coord.z,
+            hex_tile.plane_coord.x,
+            hex_tile.plane_coord.y,
+            hex_tile.step
+        )
+
+        new_hex_tile.elm = hex_tile.getElm()
+        new_hex_tile.surface_type = hex_tile.getSurfaceType()
+        new_hex_tile.is_vine = hex_tile.isVine()
+
+        return new_hex_tile
+    }
+
     static isCertainType(tile: AbstractHexTile): tile is MineHexTile {
         return tile.type === TileType.MINE
     }
@@ -147,30 +186,38 @@ class MineHexTile extends AbstractHexTile {
     hover() { }
 }
 
-class HexTileList<T extends AbstractHexTile = AbstractHexTile> implements Iterable<T>{
+class HexTileList<T extends AbstractHexTile = AbstractHexTile> implements Iterable<T> {
     private items: T[]
 
     constructor() {
         this.items = []
     }
 
-    push(hex_tile: T) {
-        this.items.push(hex_tile)
+    push(value: T) {
+        this.items.push(value)
     }
 
-    getById(hex_tile_id: string): T | null {
+    getById(id: string): T | undefined {
         for (const hex_tile of this.items) {
-            if (hex_tile.getId() === hex_tile_id) {
+            if (hex_tile.getId() === id) {
                 return hex_tile
             }
         }
 
-        return null
+        return undefined
     }
 
-    getIdxById(hex_tile_id: string): number {
+    getByIdx(idx: number): T | undefined {
+        if (idx < 0 || idx >= this.items.length) {
+            return undefined
+        }
+
+        return this.items[idx]
+    }
+
+    findIdx(id: string): number {
         for (let i = 0; i < this.items.length; i += 1) {
-            if (this.items[i].getId() === hex_tile_id) {
+            if (this.items[i].getId() === id) {
                 return i
             }
         }
@@ -186,33 +233,32 @@ class HexTileList<T extends AbstractHexTile = AbstractHexTile> implements Iterab
         return this.items.length
     }
 
-    set(value: T, idx: number) {
+    set(idx: number, value: T) {
+        if (idx < 0 || idx >= this.items.length) { return }
+
         this.items[idx] = value
     }
 
-    [Symbol.iterator](): Iterator<T> {
-        let idx = 0
+    reset(value_list: T[]) {
+        this.items = value_list
+    }
 
-        return {
-            next: (): IteratorResult<T> => {
-                if (idx < this.items.length) {
-                    const cur_value = this.items[idx]
+    clone(): T[] {
+        return Array.from(this.items)
+    }
 
-                    idx += 1
-
-                    return { done: false, value: cur_value }
-                } else {
-                    return { done: true, value: undefined }
-                }
-            }
+    *[Symbol.iterator](): Generator<T> {
+        for (const item of this.items) {
+            yield item
         }
     }
 }
 
 class MineBoard {
     accessor size: number // The number of hex tiles on a radius of the board.
-    public readonly hex_tile_list: HexTileList
+    private hex_tile_list: HexTileList
     private mine_hex_tile_list: HexTileList<MineHexTile>
+    private number_hex_tile_list: HexTileList<NumHexTile>
     static readonly HEX_TILE_RADIUS: number = 26 // The radius length of a hex tile.
     static readonly HEX_TILE_SPACING: number = 1 // The spacing between two hex tiles.
 
@@ -220,9 +266,10 @@ class MineBoard {
         this.size = size
         this.hex_tile_list = new HexTileList()
         this.mine_hex_tile_list = new HexTileList<MineHexTile>()
+        this.number_hex_tile_list = new HexTileList<NumHexTile>()
     }
 
-    findHexTile(hex_tile_id: string): AbstractHexTile | null {
+    findHexTile(hex_tile_id: string): AbstractHexTile | undefined {
         return this.hex_tile_list.getById(hex_tile_id)
     }
 
@@ -234,10 +281,14 @@ class MineBoard {
 
     init() { }
 
+    getHexTiles(): AbstractHexTile[] {
+        return this.hex_tile_list.clone()
+    }
+
     /**
      * Generate a mine board by BFS.
      */
-    generateBlankBoard(center_plane_x: number, center_plane_y: number) {
+    genBlankBoard(center_plane_x: number, center_plane_y: number) {
         const center_hex_tile: AbstractHexTile = new BlankHexTile(0, 0, 0, center_plane_x, center_plane_y, 0)
         const hex_tile_queue: AbstractHexTile[] = []
         const hex_tile_visited_dict: Record<string, boolean> = {} // Determine whether a hex tile has been visited or not.
@@ -259,8 +310,6 @@ class MineBoard {
 
             cur_hex_tile.createElm(MineBoard.HEX_TILE_RADIUS)
             this.hex_tile_list.push(cur_hex_tile)
-            // TODO: The moment of rendering.
-            // top_hex_tile.render(MineBoard.HEX_TILE_RADIUS)
 
             for (const hex_direction of HEX_DIRECTION_LIST) {
                 const hex_pos: HexVector = cur_hex_tile.hex_coord.plus(hex_direction)
@@ -286,102 +335,126 @@ class MineBoard {
         }
     }
 
-    getInitMineFreeArea(hex_tile_id: string): AbstractHexTile[] {
-        let cells = []
-        let cur_cell = parseId(id, size)
-        let ext = 2
-        let rnd_dir = rangeRnd(0, 5)
-        let opp_dir = (rnd_dir + Math.floor(hex_dirs.length / 2)) % hex_dirs.length
-        let isfill = 0
-        for (let i in hex_dirs) {
-            let t_cell = cur_cell
-            for (let j = 0; j < ext; ++j) {
-                t_cell = t_cell.plus(hex_dirs[i])
-                let t_id = t_cell.getId(size)
-                let t_idx = hexs_mp.indexOf(t_id)
-                if (t_idx != -1) {
-                    if (isClickable(t_id)) {
-                        cells.push(t_id)
-                    }
+    /**
+     * Find safe hex tiles around the origin hex tile.
+     */
+    getSafeTiles(origin_hex_tile_id: string): HexTileList {
+        const safe_hex_tile_list: HexTileList = new HexTileList()
+        const cur_hex: HexVector = HexVector.parseId(origin_hex_tile_id)
+        const rnd_direction_idx: number = rollRange(0, HEX_DIRECTION_LIST.length - 1)
+        const opposite_direction_idx: number = (rnd_direction_idx + Math.floor(HEX_DIRECTION_LIST.length / 2)) % HEX_DIRECTION_LIST.length
+        const extra_extended_num: number = 2
+        let cur_extended_cnt: number = 0
 
+        // Iterate the 6 directions from the origin hex tile.
+        for (let i = 0; i < HEX_DIRECTION_LIST.length; i += 1) {
+            let tmp_hex_pos: HexVector = cur_hex
+
+            // On each direction, step forward for the curtain extended number.
+            for (let j = 0; j < extra_extended_num; j += 1) {
+                tmp_hex_pos = tmp_hex_pos.plus(HEX_DIRECTION_LIST[i])
+
+                const tmp_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(tmp_hex_pos.getId())
+
+                if (tmp_hex_tile && tmp_hex_tile.isClickable()) {
+                    safe_hex_tile_list.push(tmp_hex_tile)
                 }
-                let ii = parseInt(i)
+
+                // If the current direction is the selected random direction or
+                // the opposite one, extend extra 2 hex tiles.
                 if (
-                    isfill < 2 &&
-                    (ii == rnd_dir || ii == opp_dir) &&
-                    j == 0
+                    cur_extended_cnt < extra_extended_num &&
+                    (i === rnd_direction_idx || i === opposite_direction_idx) &&
+                    j === 0
                 ) {
-                    isfill++
-                    let fdirs = [(ii + 1) % hex_dirs.length, (ii + 5) % hex_dirs.length]
-                    for (let k in fdirs) {
-                        let f_cell = t_cell.plus(hex_dirs[fdirs[k]])
-                        let f_id = f_cell.getId(size)
-                        let f_idx = hexs_mp.indexOf(f_id)
-                        if (f_idx != -1) {
-                            if (isClickable(f_id)) {
-                                cells.push(f_id)
-                            }
+                    const extra_direction_idx_list: number[] = [
+                        (i + 1) % HEX_DIRECTION_LIST.length,
+                        (i + HEX_DIRECTION_LIST.length - 1) % HEX_DIRECTION_LIST.length
+                    ]
+
+                    cur_extended_cnt += 1
+
+                    for (const direction_idx of extra_direction_idx_list) {
+                        const extra_hex_pos: HexVector = tmp_hex_pos.plus(HEX_DIRECTION_LIST[direction_idx])
+                        const extra_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(extra_hex_pos.getId())
+
+                        if (extra_hex_tile && extra_hex_tile.isClickable()) {
+                            safe_hex_tile_list.push(extra_hex_tile)
                         }
                     }
                 }
             }
         }
 
-        return cells
+        return safe_hex_tile_list
     }
 
-    generateMines(mine_num: number, first_hex_tile_id: string) {
-        let mask = []
-        let rnd_arr = []
-        let adj = this.getInitMineFreeArea(first_hex_tile_id)
-        adj.push(id)
+    genMines(mine_num: number, origin_hex_tile_id: string) {
+        const rnd_list: number[] = []
+        const safe_hex_tile_list: HexTileList = this.getSafeTiles(origin_hex_tile_id)
+        const origin_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(origin_hex_tile_id)
 
-        for (let i = 0; i < hexs.length; i += 1) {
-            if (adj.indexOf(hexs[i].hexc.mapping(size)) == -1) {
-                rnd_arr.push(i)
+        if (!origin_hex_tile) { return }
+
+        safe_hex_tile_list.push(origin_hex_tile)
+
+        for (let i = 0; i < this.mine_hex_tile_list.getLen(); i += 1) {
+            const hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getByIdx(i)
+
+            if (hex_tile && safe_hex_tile_list.findIdx(hex_tile.getId()) === -1) {
+                rnd_list.push(i)
             }
         }
 
-        for (let i = 0; i < mine_num; i += 1s) {
-            let rnd_i = rangeRnd(0, rnd_arr.length - 1)
-            this.mine_hex_tile_list.push(hexs[rnd_arr[rnd_i]].hexc)
-            hexs[rnd_arr[rnd_i]].type = 2
-            rnd_arr.splice(rnd_i, 1)
+        for (let i = 0; i < mine_num; i += 1) {
+            const rnd_num: number = rollRange(0, rnd_list.length - 1)
+            const rnd_idx: number = rnd_list[rnd_num]
+            const selected_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getByIdx(rnd_idx)
+
+            if (!selected_hex_tile) { continue }
+
+            const new_mine_hex_tile: MineHexTile = MineHexTile.constructFrom(selected_hex_tile)
+
+            this.hex_tile_list.set(rnd_idx, new_mine_hex_tile)
+            this.mine_hex_tile_list.push(new_mine_hex_tile)
+            rnd_list.splice(rnd_num, 1)
         }
     }
 
-    signNum() {
-        let num_map = {};
+    markNum() {
+        for (const mine_hex_tile of this.mine_hex_tile_list) {
+            // Iterate the 6 directions from a mine hex tile.
+            for (const hex_direction of HEX_DIRECTION_LIST) {
+                const tmp_hex_tile_id: string = hex_direction.plus(mine_hex_tile.hex_coord).getId()
+                const tmp_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(tmp_hex_tile_id)
 
-        for (let i in mines_mp) {
-            for (let j in hex_dirs) {
-                let t_hex_mp = hex_dirs[j].plus(
-                    parseId(mines_mp[i], size)
-                ).getId(size);
-
-                if (hexs_mp.indexOf(t_hex_mp) != -1 &&
-                    mines_mp.indexOf(t_hex_mp) == -1
+                // If the hex tile is not a mine hex tile.
+                if (
+                    tmp_hex_tile &&
+                    this.mine_hex_tile_list.findIdx(tmp_hex_tile_id) === -1
                 ) {
-                    if (t_hex_mp in num_map) {
-                        num_map[t_hex_mp] += 1;
-                    } else {
-                        num_map[t_hex_mp] = 1;
+                    const tmp_num_hex_tile: NumHexTile | undefined = this.number_hex_tile_list.getById(tmp_hex_tile_id)
+
+                    // If the hex tile is already a number hex tile, increase the number.
+                    if (tmp_num_hex_tile) {
+                        tmp_num_hex_tile.num += 1
+                    } else { // Otherwise, create a new number hex tile.
+                        const new_num_hex_tile: NumHexTile = NumHexTile.constructFrom(tmp_hex_tile, 1)
+
+                        this.number_hex_tile_list.push(new_num_hex_tile)
                     }
                 }
             }
         }
 
-        for (let i in num_map) {
-            let idx = hexs_mp.indexOf(parseInt(i));
+        // Replace the number hex tiles in the hex tile list.
+        for (const num_hex_tile of this.number_hex_tile_list) {
+            const hex_tile_idx: number = this.hex_tile_list.findIdx(num_hex_tile.getId())
 
-            if (idx != -1) {
-                hexs[idx].type = 1;
+            if (hex_tile_idx !== -1) {
+                this.hex_tile_list.set(hex_tile_idx, num_hex_tile)
             }
         }
-    }
-
-    generateNumberHexTiles(): NumberHexTile[] {
-        const number_hex_tile_list: NumberHexTile[] = []
     }
 }
 
