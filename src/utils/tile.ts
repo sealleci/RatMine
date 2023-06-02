@@ -1,4 +1,4 @@
-import { addElmClass, removeElmClass } from '@/utils/dom.ts'
+import { addElmClass, removeElmClass, removeElmChildren } from '@/utils/dom.ts'
 import { HEX_DIRECTION_LIST, HexVector, PlaneVector, convertHexVectorToPlaneVector } from '@/utils/geometry.ts'
 import { rollRange } from '@/utils/util.ts'
 
@@ -35,12 +35,11 @@ abstract class AbstractHexTile {
         this.elm = null
     }
 
-    static isCertainType(_: AbstractHexTile): _ is AbstractHexTile {
-        return true
-    }
-
     abstract click(): void
-    abstract hover(): void
+
+    reveal() {
+        this.surface_type = TileSurfaceType.REVEALED
+    }
 
     getSurfaceType(): TileSurfaceType {
         return this.surface_type
@@ -63,6 +62,12 @@ abstract class AbstractHexTile {
     removeElmClass(class_name: string) {
         if (this.elm) {
             removeElmClass(this.elm, class_name)
+        }
+    }
+
+    setElmText(text: string) {
+        if (this.elm) {
+            this.elm.textContent = text
         }
     }
 
@@ -111,13 +116,7 @@ class BlankHexTile extends AbstractHexTile {
         super(TileType.BLANK, hex_x, hex_y, hex_z, plane_x, plane_y, step)
     }
 
-    static isCertainType(tile: AbstractHexTile): tile is BlankHexTile {
-        return tile.type === TileType.BLANK
-    }
-
     click() { }
-
-    hover() { }
 }
 
 class NumHexTile extends AbstractHexTile {
@@ -126,10 +125,6 @@ class NumHexTile extends AbstractHexTile {
     constructor(hex_x: number, hex_y: number, hex_z: number, plane_x: number, plane_y: number, step: number, num: number) {
         super(TileType.NUMBER, hex_x, hex_y, hex_z, plane_x, plane_y, step)
         this.num = num
-    }
-
-    static isCertainType(tile: AbstractHexTile): tile is NumHexTile {
-        return tile.type === TileType.MINE
     }
 
     static constructFrom(hex_tile: AbstractHexTile, num: number): NumHexTile {
@@ -150,9 +145,13 @@ class NumHexTile extends AbstractHexTile {
         return new_hex_tile
     }
 
-    click() { }
+    updateElmText() {
+        if (this.elm) {
+            this.elm.textContent = this.num.toString()
+        }
+    }
 
-    hover() { }
+    click() { }
 }
 
 class MineHexTile extends AbstractHexTile {
@@ -177,13 +176,51 @@ class MineHexTile extends AbstractHexTile {
         return new_hex_tile
     }
 
-    static isCertainType(tile: AbstractHexTile): tile is MineHexTile {
-        return tile.type === TileType.MINE
+    click() { }
+}
+
+class HexTileHint {
+    private hex_tile: AbstractHexTile | null
+    private tick: number
+    private is_done: boolean
+    private static readonly DURATION: number = 4500 // The duration of a hint animation.
+    private static readonly TICK_INTERVAL: number = 10 // The interval between ticks of a hint animation.
+
+    constructor(hex_tile: AbstractHexTile) {
+        this.hex_tile = hex_tile
+        this.tick = 0
+        this.is_done = false
     }
 
-    click() { }
+    isDone(): boolean {
+        return this.is_done
+    }
 
-    hover() { }
+    init(hex_tile_elm: AbstractHexTile) {
+        this.hex_tile = hex_tile_elm
+        this.tick = 0
+        this.is_done = false
+    }
+
+
+
+    activate() {
+        if (!this.hex_tile) {
+            this.is_done = true
+            return
+        }
+
+        if (
+            this.tick >= HexTileHint.DURATION / HexTileHint.TICK_INTERVAL ||
+            this.hex_tile.getSurfaceType() !== TileSurfaceType.NORMAL
+        ) {
+            this.hex_tile.removeElmClass('hex-shake')
+            this.is_done = true
+        }
+        else {
+            this.tick += 1
+        }
+    }
 }
 
 class HexTileList<T extends AbstractHexTile = AbstractHexTile> implements Iterable<T> {
@@ -225,6 +262,16 @@ class HexTileList<T extends AbstractHexTile = AbstractHexTile> implements Iterab
         return -1
     }
 
+    removeById(id: string) {
+        const idx: number = this.findIdx(id)
+
+        if (idx === -1) {
+            return
+        }
+
+        this.items.splice(idx, 1)
+    }
+
     clear() {
         this.items = []
     }
@@ -247,6 +294,10 @@ class HexTileList<T extends AbstractHexTile = AbstractHexTile> implements Iterab
         return Array.from(this.items)
     }
 
+    unique() {
+        this.items = Array.from(new Set(this.items))
+    }
+
     *[Symbol.iterator](): Generator<T> {
         for (const item of this.items) {
             yield item
@@ -259,6 +310,12 @@ class MineBoard {
     private hex_tile_list: HexTileList
     private mine_hex_tile_list: HexTileList<MineHexTile>
     private number_hex_tile_list: HexTileList<NumHexTile>
+    private detonated_hex_tile_list: HexTileList<MineHexTile>
+    private revealed_hex_tile_list: HexTileList
+    private hover_center_hex_tile_list: HexTileList
+    private hint_list: HexTileHint[]
+    accessor marked_mine_cnt: number
+    private elm: HTMLElement
     static readonly HEX_TILE_RADIUS: number = 26 // The radius length of a hex tile.
     static readonly HEX_TILE_SPACING: number = 1 // The spacing between two hex tiles.
 
@@ -267,10 +324,20 @@ class MineBoard {
         this.hex_tile_list = new HexTileList()
         this.mine_hex_tile_list = new HexTileList<MineHexTile>()
         this.number_hex_tile_list = new HexTileList<NumHexTile>()
+        this.detonated_hex_tile_list = new HexTileList<MineHexTile>()
+        this.revealed_hex_tile_list = new HexTileList()
+        this.hover_center_hex_tile_list = new HexTileList()
+        this.hint_list = []
+        this.marked_mine_cnt = 0
+        this.elm = document.querySelector('#mine-field')!
     }
 
     findHexTile(hex_tile_id: string): AbstractHexTile | undefined {
         return this.hex_tile_list.getById(hex_tile_id)
+    }
+
+    isHexTileHoverCenter(hex_tile_id: string): boolean {
+        return this.hover_center_hex_tile_list.findIdx(hex_tile_id) !== -1
     }
 
     isBlankBoard(): boolean {
@@ -279,7 +346,13 @@ class MineBoard {
 
     clear() { }
 
-    init() { }
+    init() {
+        this.hex_tile_list.clear()
+        this.mine_hex_tile_list.clear()
+        this.number_hex_tile_list.clear()
+        this.detonated_hex_tile_list.clear()
+        removeElmChildren(this.elm)
+    }
 
     getHexTiles(): AbstractHexTile[] {
         return this.hex_tile_list.clone()
@@ -293,7 +366,7 @@ class MineBoard {
         const hex_tile_queue: AbstractHexTile[] = []
         const hex_tile_visited_dict: Record<string, boolean> = {} // Determine whether a hex tile has been visited or not.
 
-        function isHexTileVisited(hex_tile_id: string) {
+        function isHexTileVisited(hex_tile_id: string): boolean {
             if (hex_tile_id in hex_tile_visited_dict) {
                 return hex_tile_visited_dict[hex_tile_id]
             } else {
@@ -340,18 +413,18 @@ class MineBoard {
      */
     getSafeTiles(origin_hex_tile_id: string): HexTileList {
         const safe_hex_tile_list: HexTileList = new HexTileList()
-        const cur_hex: HexVector = HexVector.parseId(origin_hex_tile_id)
+        const cur_hex_pos: HexVector = HexVector.parseId(origin_hex_tile_id)
         const rnd_direction_idx: number = rollRange(0, HEX_DIRECTION_LIST.length - 1)
         const opposite_direction_idx: number = (rnd_direction_idx + Math.floor(HEX_DIRECTION_LIST.length / 2)) % HEX_DIRECTION_LIST.length
-        const extra_extended_num: number = 2
-        let cur_extended_cnt: number = 0
+        const extra_expanded_num: number = 2
+        let cur_expanded_cnt: number = 0
 
         // Iterate the 6 directions from the origin hex tile.
         for (let i = 0; i < HEX_DIRECTION_LIST.length; i += 1) {
-            let tmp_hex_pos: HexVector = cur_hex
+            let tmp_hex_pos: HexVector = cur_hex_pos
 
-            // On each direction, step forward for the curtain extended number.
-            for (let j = 0; j < extra_extended_num; j += 1) {
+            // On each direction, step forward for the curtain expanded number.
+            for (let j = 0; j < extra_expanded_num; j += 1) {
                 tmp_hex_pos = tmp_hex_pos.plus(HEX_DIRECTION_LIST[i])
 
                 const tmp_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(tmp_hex_pos.getId())
@@ -361,9 +434,9 @@ class MineBoard {
                 }
 
                 // If the current direction is the selected random direction or
-                // the opposite one, extend extra 2 hex tiles.
+                // the opposite one, expand extra 2 hex tiles.
                 if (
-                    cur_extended_cnt < extra_extended_num &&
+                    cur_expanded_cnt < extra_expanded_num &&
                     (i === rnd_direction_idx || i === opposite_direction_idx) &&
                     j === 0
                 ) {
@@ -372,7 +445,7 @@ class MineBoard {
                         (i + HEX_DIRECTION_LIST.length - 1) % HEX_DIRECTION_LIST.length
                     ]
 
-                    cur_extended_cnt += 1
+                    cur_expanded_cnt += 1
 
                     for (const direction_idx of extra_direction_idx_list) {
                         const extra_hex_pos: HexVector = tmp_hex_pos.plus(HEX_DIRECTION_LIST[direction_idx])
@@ -456,50 +529,254 @@ class MineBoard {
             }
         }
     }
-}
 
-class HexTileHint {
-    private hex_tile: AbstractHexTile | null
-    private tick: number
-    private is_done: boolean
-    private static readonly DURATION: number = 4500 // The duration of a hint animation.
-    private static readonly TICK_INTERVAL: number = 10 // The interval between ticks of a hint animation.
+    expandBlanks(origin_hex_tile_id: string) {
+        const origin_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(origin_hex_tile_id)
+        const hex_tile_queue: AbstractHexTile[] = []
+        const hex_tile_visited_dict: Record<string, boolean> = {}
 
-    constructor() {
-        this.hex_tile = null
-        this.tick = 0
-        this.is_done = false
-    }
-
-    isDone(): boolean {
-        return this.is_done
-    }
-
-    init(hex_tile_elm: AbstractHexTile) {
-        this.hex_tile = hex_tile_elm
-        this.tick = 0
-        this.is_done = false
-    }
-
-    activate() {
-        if (!this.hex_tile) {
-            this.is_done = true
-            return
+        function isHexTileVisited(hex_tile_id: string): boolean {
+            if (hex_tile_id in hex_tile_visited_dict) {
+                return hex_tile_visited_dict[hex_tile_id]
+            } else {
+                hex_tile_visited_dict[hex_tile_id] = false
+                return false
+            }
         }
+
+        if (origin_hex_tile) {
+            hex_tile_queue.push(origin_hex_tile)
+            hex_tile_visited_dict[origin_hex_tile_id] = true
+        }
+
+        while (hex_tile_queue.length !== 0) {
+            let cur_hex_tile: AbstractHexTile = hex_tile_queue.shift()!
+
+            if (
+                cur_hex_tile.getSurfaceType() === TileSurfaceType.REVEALED
+            ) { // Skip the revealed hex tiles.
+                continue
+            } else {
+                if (
+                    cur_hex_tile.getSurfaceType() === TileSurfaceType.FLAG
+                ) { // If the hex tile has a flag, unset the flag.
+                    cur_hex_tile.reveal()
+                    this.marked_mine_cnt -= 1
+                }
+
+                if (cur_hex_tile.type === TileType.NUMBER) { // If the hex tile is a number hex tile.
+                    // clickNum(cur_hex_tile_id)
+                    continue
+                } else { // If the hex tile is a blank hex tile.
+                    // $(`#${cur_hex_tile_id}`).text('')
+                    // $(`#${cur_hex_tile_id}`).addClass('hex-active')
+                    cur_hex_tile.reveal()
+                    this.revealed_hex_tile_list.push(cur_hex_tile)
+                    // total_score += space_reward
+                }
+            }
+
+            // Iterate the 6 directions from the current hex tile.
+            for (const hex_direction of HEX_DIRECTION_LIST) {
+                const cur_hex_pos: HexVector = cur_hex_tile.hex_coord.plus(hex_direction)
+
+                if (!isHexTileVisited(cur_hex_pos.getId())) {
+                    const tmp_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(cur_hex_pos.getId())
+
+                    // If this hex tile is not a mine hex tile.
+                    if (tmp_hex_tile && tmp_hex_tile.type !== TileType.MINE) {
+                        hex_tile_visited_dict[tmp_hex_tile.getId()] = true
+                        hex_tile_queue.push(tmp_hex_tile)
+                    }
+                }
+            }
+        }
+
+        // updateScoreInfo()
+        // updateMinesInfo()
+        // judgeFinish()
+    }
+
+    getHoverTiles(origin_hex_tile_id: string, is_choose_flag_settable: boolean = false): HexTileList {
+        const hover_hex_tile_list: HexTileList = new HexTileList()
+        const cur_hex_pos: HexVector = HexVector.parseId(origin_hex_tile_id)
+
+        for (const hex_direction of HEX_DIRECTION_LIST) {
+            const tmp_hex_pos: HexVector = cur_hex_pos.plus(hex_direction)
+            const tmp_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(tmp_hex_pos.getId())
+
+            if (tmp_hex_tile) {
+                if (!is_choose_flag_settable) { // Choose the clickable hex tiles.
+                    if (tmp_hex_tile.isClickable()) {
+                        hover_hex_tile_list.push(tmp_hex_tile)
+                    }
+                } else { // Choose the hex tiles that can be set flag.
+                    if (tmp_hex_tile.isFlagSettable()) {
+                        hover_hex_tile_list.push(tmp_hex_tile)
+                    }
+                }
+            }
+        }
+
+        return hover_hex_tile_list
+    }
+
+    releaseHover(origin_hex_tile_id: string) {
+        const hover_center_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(origin_hex_tile_id)
+
+        if (!hover_center_hex_tile) { return }
+
+        this.hover_center_hex_tile_list.unique()
 
         if (
-            this.tick >= HexTileHint.DURATION / HexTileHint.TICK_INTERVAL ||
-            this.hex_tile.getSurfaceType() !== TileSurfaceType.NORMAL
-        ) {
-            this.hex_tile.removeElmClass('hex-shake')
-            this.is_done = true
+            hover_center_hex_tile.type !== TileType.NUMBER ||
+            hover_center_hex_tile.getSurfaceType() !== TileSurfaceType.REVEALED ||
+            this.hover_center_hex_tile_list.findIdx(origin_hex_tile_id) === -1
+        ) { return }
+
+        const hover_hex_tile_list: HexTileList = this.getHoverTiles(origin_hex_tile_id)
+
+        hover_center_hex_tile.removeElmClass('hex-active-press')
+
+        for (const hover_hex_tile of hover_hex_tile_list) {
+            hover_hex_tile.removeElmClass('hex-hover')
         }
-        else {
-            this.tick += 1
+
+        this.hover_center_hex_tile_list.removeById(origin_hex_tile_id)
+    }
+
+    hover(origin_hex_tile_id: string) {
+        const hover_center_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(origin_hex_tile_id)
+
+        if (!hover_center_hex_tile) { return }
+
+        const hover_hex_tile_list: HexTileList = this.getHoverTiles(origin_hex_tile_id)
+
+        this.hover_center_hex_tile_list.push(hover_center_hex_tile)
+        hover_center_hex_tile.addElmClass('hex-active-press')
+
+        for (const hover_hex_tile of hover_hex_tile_list) {
+            hover_hex_tile.addElmClass('hex-hover')
+        }
+    }
+
+    infer(origin_hex_tile_id: string) {
+        const inferred_hex_tile_list: HexTileList = new HexTileList()
+        const origin_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(origin_hex_tile_id)
+        let predicted_mine_cnt: number = 0 // The number of predicted adjacent mines.
+
+        if (!origin_hex_tile || !(origin_hex_tile instanceof NumHexTile)) { return }
+
+        for (const hex_direction of HEX_DIRECTION_LIST) {
+            const tmp_hex_pos: HexVector = origin_hex_tile.hex_coord.plus(hex_direction)
+            const tmp_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(tmp_hex_pos.getId())
+
+            if (!tmp_hex_tile) { continue }
+
+            if (tmp_hex_tile.isClickable()) { // If the hex tile is clickable, add it to the inferred hex tile list.
+                inferred_hex_tile_list.push(tmp_hex_tile)
+            } else if (
+                tmp_hex_tile.getSurfaceType() === TileSurfaceType.FLAG ||
+                (tmp_hex_tile.getSurfaceType() === TileSurfaceType.REVEALED &&
+                    tmp_hex_tile.type === TileType.MINE)
+            ) {  // If the hex tile has a flag or is a revealed mine hex tile, increase the number of predicted mines.
+                predicted_mine_cnt += 1
+            }
+        }
+
+        if (predicted_mine_cnt === origin_hex_tile.num) { // If the number of predicted mines equals to the number on the origin hex tile.
+            let is_click_mine: boolean = false
+
+            for (const inferred_hex_tile of inferred_hex_tile_list) {
+                if (!inferred_hex_tile.isClickable()) { continue }
+
+                if (inferred_hex_tile.type === TileType.MINE) {
+                    is_click_mine = true
+                }
+
+                // clickCell(inferred_hex_tile_list[i])
+                inferred_hex_tile.click()
+            }
+
+            if (is_click_mine) { // If the inferred hex tile list contains a mine hex tile.
+                const flag_hex_tile_list: HexTileList = new HexTileList()
+
+                for (const hex_direction of HEX_DIRECTION_LIST) {
+                    const tmp_hex_pos: HexVector = origin_hex_tile.hex_coord.plus(hex_direction)
+                    const tmp_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(tmp_hex_pos.getId())
+
+                    if (!tmp_hex_tile) { continue }
+
+                    if (tmp_hex_tile.getSurfaceType() === TileSurfaceType.FLAG) { // If the hex tile has a flag, add it to the flag hex tile list.
+                        flag_hex_tile_list.push(tmp_hex_tile)
+                    }
+                }
+
+                for (const flag_hex_tile of flag_hex_tile_list) { // Reveal the wrong flag hex tiles.
+                    if (flag_hex_tile instanceof BlankHexTile) {
+                        flag_hex_tile.reveal()
+                        flag_hex_tile.setElmText('')
+                        flag_hex_tile.addElmClass('hex-wrong')
+                        this.marked_mine_cnt -= 1
+                        this.revealed_hex_tile_list.push(flag_hex_tile)
+                    } else if (flag_hex_tile instanceof NumHexTile) {
+                        flag_hex_tile.reveal()
+                        flag_hex_tile.updateElmText()
+                        flag_hex_tile.addElmClass('hex-wrong')
+                        this.marked_mine_cnt -= 1
+                        this.revealed_hex_tile_list.push(flag_hex_tile)
+                    }
+                }
+            }
+        } else if (predicted_mine_cnt + inferred_hex_tile_list.getLen() === origin_hex_tile.num) {
+            // If the number of predicted mines plus the number of inferred hex tiles equals to the number on the origin hex tile.
+
+            for (const inferred_hex_tile of inferred_hex_tile_list) {
+                inferred_hex_tile.setFlag()
+            }
+        }
+
+        // updateMinesInfo()
+        // judgeFinish()
+    }
+
+    render() {
+        for (const hex_tile of this.hex_tile_list) {
+            const hex_tile_elm: HTMLElement | null = hex_tile.getElm()
+
+            if (hex_tile_elm) {
+                this.elm.appendChild(hex_tile_elm)
+            }
+        }
+    }
+
+    createHint() {
+        const rnd_list: number[] = []
+        let idx: number = 0
+
+        for (const mine_hex_tile of this.mine_hex_tile_list) {
+            if (
+                mine_hex_tile.getSurfaceType() !== TileSurfaceType.FLAG &&
+                mine_hex_tile.isClickable()
+            ) {
+                rnd_list.push(idx)
+            }
+
+            idx += 1
+        }
+
+        if (rnd_list.length > 0) {
+            const rnd_idx: number = rollRange(0, rnd_list.length - 1)
+            const rnd_hex_tile: AbstractHexTile | undefined = this.mine_hex_tile_list.getByIdx(rnd_list[rnd_idx])
+
+            if (rnd_hex_tile) {
+                rnd_hex_tile.addElmClass('hex-shake')
+                this.hint_list.push(new HexTileHint(rnd_hex_tile))
+            }
         }
     }
 }
 
 class HighlightHexTile { }
 
-export { AbstractHexTile, HexTileHint, HighlightHexTile, MineBoard, TileSurfaceType, TileType }
+export { AbstractHexTile, BlankHexTile, HexTileHint, HighlightHexTile, MineBoard, MineHexTile, NumHexTile, TileSurfaceType, TileType }

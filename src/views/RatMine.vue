@@ -79,59 +79,6 @@ function unsetFlag(id) {
     judgeFinish();
 }
 
-function expandSpaces(id) { //点空白扩展
-    let chexc = parseId(id, size);
-    let q = [];
-    let map = {};
-
-    q.push(chexc);
-    map[chexc.getId(size)] = 1;
-
-    while (q.length != 0) {
-        let t = q.shift();
-        let mp = t.mapping(size);
-
-        if (hexs[hexs_mp.indexOf(mp)].surface == 1) { //跳过点过的格子
-            continue;
-        } else {
-            if (hexs[hexs_mp.indexOf(mp)].surface == 2) { //如果插着旗子，把旗子去掉，数值减减
-                hexs[hexs_mp.indexOf(mp)].surface = 1;
-                cur_mines -= 1;
-            }
-
-            if (nums_mp.indexOf(mp) != -1) { //如果是数值格子
-                clickNum(mp);
-                continue;
-            } else { //空白格子
-                $(`#${mp}`).text('');
-                $(`#${mp}`).addClass('hex-active');
-                hexs[hexs_mp.indexOf(mp)].surface = 1;
-                total_score += space_reward;
-                actives_mp.push(mp);
-            }
-        }
-
-        for (let i in hex_dirs) { //向六个方向搜
-            let hexc = t.plus(hex_dirs[i]);
-
-            if (!isin(hexc, map)) {
-                let t_mp = hexc.mapping(size);
-                if (
-                    hexs_mp.indexOf(t_mp) != -1 &&
-                    mines_mp.indexOf(t_mp) == -1
-                ) { //搜不是雷的格子
-                    map[t_mp] = 1;
-                    q.push(hexc);
-                }
-            }
-        }
-    }
-
-    updateScoreInfo();
-    updateMinesInfo();
-    judgeFinish();
-}
-
 function clickCell(id) {
     if (!isClickable(id)) {
         return;
@@ -150,162 +97,6 @@ function clickCell(id) {
             break
         default:
             break;
-    }
-}
-
-function hoverArea(id, isflag = false) {
-    let cells = [];
-    let cur_cell = parseId(id, size);
-
-    for (let i in hex_dirs) {
-        let t_cell = cur_cell.plus(hex_dirs[i]);
-        let t_id = t_cell.getId(size);
-        let t_idx = hexs_mp.indexOf(t_id);
-
-        if (t_idx != -1) { //&& isClickable(t_id)
-            if (!isflag) {
-                if (isClickable(t_id)) {
-                    cells.push(t_cell);
-                }
-            } else {
-                if (isFlagable(t_id)) {
-                    cells.push(t_cell);
-                }
-            }
-        }
-    }
-
-    return cells;
-}
-
-function inferArea(id) {
-    let cells = [];
-    let cur_cell = parseId(id, size);
-    let num = nums_dic[id];
-    let flags = 0; //周围雷数
-
-    for (let i in hex_dirs) {
-        let t_cell = cur_cell.plus(hex_dirs[i]);
-        let t_map = t_cell.getId(size);
-        let t_idx = hexs_mp.indexOf(t_map);
-        if (t_idx == -1) {
-            continue;
-        }
-
-        if (isClickable(t_map)) { //装入周围可点击的
-            cells.push(t_map);
-        } else if (
-            hexs[t_idx].surface == 2 ||
-            (hexs[t_idx].surface == 1 &&
-                hexs[t_idx].type == 2)
-        ) { //表面有旗子，或是已被点开的雷，都算周围旗子数
-            flags += 1;
-        }
-    }
-
-    if (flags == num) {
-        //周围旗子数等于格子上的数
-        let is_click_mine = false;
-
-        for (let i in cells) {
-            let t_idx = hexs_mp.indexOf(cells[i]);
-
-            if (!isClickable(cells[i])) {
-                continue;
-            }
-
-            if (hexs[t_idx].type == 2) {
-                is_click_mine = true;
-            }
-            clickCell(cells[i]);
-        }
-
-        if (is_click_mine) { //若点了雷
-            let flag_cells = [];
-
-            for (let i in hex_dirs) {
-                let t_cell = cur_cell.plus(hex_dirs[i]);
-                let t_map = t_cell.getId(size);
-                let t_idx = hexs_mp.indexOf(t_map);
-                if (t_idx == -1) {
-                    continue;
-                }
-
-                if (hexs[t_idx].surface == 2) { //装入周围 有旗帜的
-                    flag_cells.push(t_map);
-                }
-            }
-
-            for (let i in flag_cells) { //把错误的旗子翻开
-                let t_idx = hexs_mp.indexOf(flag_cells[i]);
-
-                switch (hexs[t_idx].type) {
-                    case 0:
-                        hexs[t_idx].surface = 1;
-                        $(`#${flag_cells[i]}`).text('');
-                        $(`#${flag_cells[i]}`).addClass('hex-wrong');
-                        cur_mines--;
-                        actives_mp.push(flag_cells[i]);
-                    case 1:
-                        hexs[t_idx].surface = 1;
-                        $(`#${flag_cells[i]}`).text(nums_dic[flag_cells[i]]);
-                        $(`#${flag_cells[i]}`).addClass('hex-wrong');
-                        cur_mines--;
-                        actives_mp.push(flag_cells[i]);
-                        break
-                    case 2:
-                        break
-                    default:
-                        break;
-                }
-            }
-        }
-    } else if (flags + cells.length == num) {
-        //周围余下的空等于格子上的数-旗子数
-        for (let i in cells) {
-            setFlag(cells[i]);
-        }
-    }
-
-    updateMinesInfo();
-    judgeFinish();
-}
-
-function hoverRelease(id) {
-    let idx = hexs_mp.indexOf(id);
-    if (idx == -1) {
-        return;
-    }
-    if (nums_mp.indexOf(id) == -1 || hexs[idx].surface != 1) {
-        return;
-    }
-    hovercenters_md = unique(hovercenters_md);
-    let idx2 = hovercenters_md.indexOf(id);
-    if (idx2 == -1) {
-        return;
-    }
-    hovercenters_md.splice(idx2, 1);
-
-    let hover_hexs = hoverArea(id);
-    $(`#${id}`).removeClass('hex-active-press');
-
-    for (let i in hover_hexs) {
-        $(`#${hover_hexs[i].getId(size)}`).removeClass('hex-hover');
-    }
-}
-
-function hoverAct(id) {
-    let idx = hexs_mp.indexOf(id);
-    if (idx == -1) {
-        return;
-    }
-    hovercenters_md.push(id);
-
-    let hover_hexs = hoverArea(id);
-    $(`#${id}`).addClass('hex-active-press');
-
-    for (let i in hover_hexs) {
-        $(`#${hover_hexs[i].getId(size)}`).addClass('hex-hover');
     }
 }
 
@@ -453,20 +244,6 @@ function clickOfRat(id) {
     }
 }
 
-function getRotateImgAng(org, tar, bgn, tar_size, bgn_size) {
-    let org_v = org;
-    let tar_v = new PlaneVectorinate(
-        tar.x - bgn.x + tar_size.x / 2 - bgn_size.x / 2,
-        tar.y - bgn.y + tar_size.y / 2 - bgn_size.y / 2
-    );
-    let ang = Math.acos(org_v.dot(tar_v) / (org_v.length() * tar_v.getDistence())) * 180 / Math.PI;
-    if (tar_v.x - org_v.x > 0) {
-        ang = -ang;
-    }
-    //console.log(ang);
-    return ang;
-}
-
 function genRat(type) {
     function selectHexs(isHover) {
         let rnd_arr = [];
@@ -594,23 +371,6 @@ function setSize(size_) {
 function setMineCnt(mine_) {
     mine_cnt = mine_;
 }
-
-function updateMinesInfo() {
-    $('#mine-block>.info').text(mine_cnt - cur_mines - deaths_mp.length);
-}
-
-function updateScoreInfo() {
-    $('#score-block>.info').text(total_score);
-}
-
-function updateTimeInfo() {
-    $('#time-block>.info').text(calcTime(cur_time, intv));
-}
-
-function setTimeLimInfo() {
-    $('#time-lim').text(calcTime(time_lim / intv, intv));
-}
-
 //分数判定
 function changeScore(val) {
     total_score += val;
