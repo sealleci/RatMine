@@ -1,4 +1,4 @@
-import { MineBoard, MineHexTile, NumHexTile, TileSurfaceType, TileType } from "@/utils/tile.ts"
+import { MineBoard, MineHexTile, NumHexTile, TileSurfaceType, TileType, AbstractHexTile } from "@/utils/tile.ts"
 
 class Game {
     private mine_board: MineBoard
@@ -125,6 +125,19 @@ class Game {
         }
     }
 
+    unbind() {
+        for (const hex_tile of this.mine_board.getHexTiles()) {
+            const hex_tile_elm = hex_tile.getElm()
+
+            if (!hex_tile_elm) { continue }
+
+            // Remove event listeners, note that the function should be the same as the one added.
+            hex_tile_elm.removeEventListener('mousedown', () => { })
+            hex_tile_elm.removeEventListener('mouseup', () => { })
+            hex_tile_elm.removeEventListener('mouseleave', () => { })
+        }
+    }
+
     render() {
         this.mine_board.genBlankBoard(0, 0)
         this.bind()
@@ -148,6 +161,9 @@ class Game {
 
         }
         cur_time += 1
+    }
+
+    judgeFinish() {
     }
 }
 

@@ -5,7 +5,7 @@
  * ``` js
  * await sleep(100)
  * ```
- * @param ms Milliseconds.
+ * @param ms - Milliseconds.
  */
 function sleep(ms: number) {
     return new Promise<void>((resolve) => {
@@ -71,12 +71,12 @@ function padRight(text: string, target_len: number, pad_str: string): string {
 
 /**
  * Convert the given seconds to the time string.
- * @returns The string presents the time with the "mm:ss" format.
  * 
  * Usage:
  * ``` js
  * convertSecondsToTime(70) // "01:10"
  * ```
+ * @returns The string presents the time with the "mm:ss" format.
  */
 function convertSecondsToTime(seconds: number): string {
     return `${padLeft(Math.floor(seconds / 60).toString(), 2, '0')}:${padLeft(Math.floor(seconds % 60).toString(), 2, '0')}`
@@ -85,13 +85,12 @@ function convertSecondsToTime(seconds: number): string {
 /**
  * Convert the given ticks to the time string.
  * 
- * @param tick - The number of ticks.
- * @param interval - The interval between ticks.
- * 
  * Usage:
  * ``` js
  * convertTicksToTime(70, 1000) // "01:10"
  * ```
+ * @param tick - The number of ticks.
+ * @param interval - The interval between ticks.
  */
 function convertTicksToTime(tick: number, interval: number): string {
     const minute = Math.floor((tick * interval) / (1000 * 60))

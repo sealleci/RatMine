@@ -53,7 +53,6 @@ function setFlag(id) {
     });
 
     updateMinesInfo();
-
     judgeFinish();
 }
 
@@ -75,7 +74,6 @@ function unsetFlag(id) {
     $(`#${id}`).empty();
 
     updateMinesInfo();
-
     judgeFinish();
 }
 
@@ -194,46 +192,6 @@ function bindHex() {
     });
 }
 
-function unbindHex() {
-    $('.hex').each(function () {
-        $(this).off('mousedown');
-        $(this).off('mouseup');
-        $(this).off('mouseleave');
-    });
-}
-
-function genHint() {
-    let rnd_arr = [];
-    for (let i in mines_mp) {
-        if (flags_mp.indexOf(mines_mp[i]) == -1) { //不在flag中
-            let t_idx = hexs_mp.indexOf(mines_mp[i]);
-            if (t_idx != -1 && hexs[t_idx].surface != 1) { //没被点开
-                rnd_arr.push(i);
-            }
-        }
-    }
-
-    if (rnd_arr.length > 0) {
-        let rnd_i = rangeRnd(0, rnd_arr.length - 1);
-        let id = mines_mp[rnd_arr[rnd_i]];
-        $(`#${id}`).addClass('hex-shake');
-        hints.push(new Hint(id));
-        // let idx = hexs_mp.indexOf(mines_mp[rnd_arr[rnd_i]]);
-        // let cnt = 0;
-
-        // let t_timer = setInterval(function() {
-        //     if (cnt >= hint_intv / hint_tick_intv ||
-        //         hexs[idx].surface != 0
-        //     ) {
-        //         $(`#${mines_mp[rnd_arr[rnd_i]]}`).removeClass('hex-shake');
-        //         clearInterval(t_timer);
-        //     } else {
-        //         cnt++;
-        //     }
-        // }, hint_tick_intv);
-    }
-}
-
 function clickOfRat(id) {
     if (hexs[hexs_mp.indexOf(id)].surface == 2) {
         unsetFlag(id);
@@ -245,57 +203,8 @@ function clickOfRat(id) {
 }
 
 function genRat(type) {
-    function selectHexs(isHover) {
-        let rnd_arr = [];
-        let slt_hexs = [];
-        for (let i in hexs) {
-            if (hexs[i].surface == 0 || hexs[i].surface == 2) {
-                rnd_arr.push(i);
-            }
-        }
-
-        if (rnd_arr.length < 1) {
-            return [];
-        }
-        let rnd_i = rangeRnd(0, rnd_arr.length - 1);
-        slt_hexs.push(hexs[rnd_arr[rnd_i]]);
-        //console.log(isHover)
-        if (isHover) {
-            let hover_hexs = hoverArea(hexs[rnd_arr[rnd_i]].hexc.mapping(size), true);
-            for (let i in hover_hexs) {
-                let t_idx = hexs_mp.indexOf(hover_hexs[i].getId(size));
-                if (t_idx != -1) {
-                    slt_hexs.push(hexs[t_idx]);
-                }
-            }
-        }
-
-        return slt_hexs;
-    }
-
-    function drawHighlightHex(plnc, gap) {
-        let $b_hex = $(`<div class="mask-hex"></div>`);
-        $($b_hex).css({
-            'height': `${base * 2 + gap * 4}px`,
-            'width': `${base * sqrt3 + gap * 4}px`,
-            'left': `${plnc.x - gap * 2}px`,
-            'top': `${plnc.y - gap * 2}px`
-        });
-        $('#mine-field').append($($b_hex));
-        return $b_hex;
-    }
-
     function drawRat(tar, spwn, gap, img_file, mul) {
         let $rat = $(`<div class="run-rat"><span></span><img type="image/svg+xml" src="${img_base_root}/${img_file}" /></div>`);
-        let w = (base * sqrt3 + gap * 8) * mul;
-        let h = (base * 2 + gap * 8) * mul;
-        $($rat).css({
-            'width': `${w}px`,
-            'height': `${h}px`,
-            'left': `${spwn.x}px`,
-            'top': `${spwn.y}px`
-        });
-        $($rat).children('img').css('transform', `rotate(${getRotaRotateImgAng(defaultImgDir, tar, spwn, new PlaneVectorinate(base * 2, base * 2), new PlaneVectorinate(w, h))}deg)`);
         $($rat).data('clicked', 0);
         $($rat).on('click', function () {
             let cur = parseInt($($rat).data('clicked'));
@@ -306,16 +215,6 @@ function genRat(type) {
         return $rat;
     }
 
-    function getSpawn(tar) {
-        //let spwn = new PlaneVector(5, 5);
-        // let org_id = (new HexVector(0, 0, 0)).mapping(size);
-        // let ohex = hexs[hexs_mp.indexOf(org_id)];
-        // let sym = new PlaneVector(Math.max(2 * (ohex.plnc.x - tar.x) + tar.x, 0), Math.max(2 * (ohex.plnc.y - tar.y) + tar.y, 0));
-        //let stage_top = $('#whole-stage').offset().top;
-        let l = -$('#main-stage').width() / 2 - 150;
-        let t = rangeRnd(0, 0 + 14 * draw_base);
-        return new PlaneVectorinate(l, t);
-    }
     let this_rat = rat_type_dic[type];
     let diff = draw_base - base;
     let tar = new PlaneVectorinate(5, 5);

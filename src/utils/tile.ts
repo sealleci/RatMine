@@ -1,6 +1,7 @@
 import { addElmClass, removeElmClass, removeElmChildren } from '@/utils/dom.ts'
 import { HEX_DIRECTION_LIST, HexVector, PlaneVector, convertHexVectorToPlaneVector } from '@/utils/geometry.ts'
 import { rollRange } from '@/utils/util.ts'
+import FLAG_IMG from '@/assets/img/flag.svg'
 
 enum TileType {
     BLANK = 'blank',
@@ -22,7 +23,9 @@ abstract class AbstractHexTile {
     public readonly type: TileType
     protected surface_type: TileSurfaceType
     protected is_vine: boolean // Determine whether the tile has vine or not.
-    protected elm: HTMLElement | null
+    protected elm: HTMLElement
+    static readonly HEX_TILE_RADIUS: number = 26 // The radius length of a hex tile.
+    static readonly HEX_TILE_SPACING: number = 1 // The spacing between two hex tiles.
 
     constructor(type: TileType, hex_x: number, hex_y: number, hex_z: number, plane_x: number, plane_y: number, step: number) {
         this.type = type
@@ -32,7 +35,14 @@ abstract class AbstractHexTile {
         this.type = TileType.BLANK
         this.surface_type = TileSurfaceType.NORMAL
         this.is_vine = false
-        this.elm = null
+        this.elm = document.createElement('div')
+
+        this.elm.className = 'hex'
+        this.elm.style.height = `${AbstractHexTile.HEX_TILE_RADIUS * 2}px`
+        this.elm.style.width = `${AbstractHexTile.HEX_TILE_RADIUS * Math.sqrt(3)}px`
+        this.elm.style.left = `${this.plane_coord.x}px`
+        this.elm.style.top = `${this.plane_coord.y}px`
+        this.elm.setAttribute('hex_tile_id', this.getId())
     }
 
     abstract click(): void
@@ -74,12 +84,25 @@ abstract class AbstractHexTile {
     setFlag() {
         if (this.surface_type === TileSurfaceType.NORMAL) {
             this.surface_type = TileSurfaceType.FLAG
+
+            if (this.elm) {
+                const img_elm: HTMLImageElement = document.createElement('img')
+
+                img_elm.src = FLAG_IMG
+                img_elm.style.height = `${AbstractHexTile.HEX_TILE_RADIUS * 1.5}px`
+                img_elm.style.width = `${AbstractHexTile.HEX_TILE_RADIUS * 1.5}px`
+                this.elm.appendChild(img_elm)
+            }
         }
     }
 
     unsetFlag() {
         if (this.surface_type === TileSurfaceType.FLAG) {
             this.surface_type = TileSurfaceType.NORMAL
+
+            if (this.elm) {
+                removeElmChildren(this.elm)
+            }
         }
     }
 
@@ -94,19 +117,7 @@ abstract class AbstractHexTile {
             this.surface_type === TileSurfaceType.VINE
     }
 
-    createElm(hex_tile_radius: number) {
-        const new_hex_tile_elm: HTMLElement = document.createElement('div')
-
-        new_hex_tile_elm.className = 'hex'
-        new_hex_tile_elm.style.height = `${hex_tile_radius * 2}px`
-        new_hex_tile_elm.style.width = `${hex_tile_radius * Math.sqrt(3)}px`
-        new_hex_tile_elm.style.left = `${this.plane_coord.x}px`
-        new_hex_tile_elm.style.top = `${this.plane_coord.y}px`
-        new_hex_tile_elm.setAttribute('hex_tile_id', this.getId())
-        this.elm = new_hex_tile_elm
-    }
-
-    getElm(): HTMLElement | null {
+    getElm(): HTMLElement {
         return this.elm
     }
 }
@@ -116,7 +127,9 @@ class BlankHexTile extends AbstractHexTile {
         super(TileType.BLANK, hex_x, hex_y, hex_z, plane_x, plane_y, step)
     }
 
-    click() { }
+    click() {
+        if (!this.isClickable()) { return }
+    }
 }
 
 class NumHexTile extends AbstractHexTile {
@@ -151,7 +164,9 @@ class NumHexTile extends AbstractHexTile {
         }
     }
 
-    click() { }
+    click() {
+        if (!this.isClickable()) { return }
+    }
 }
 
 class MineHexTile extends AbstractHexTile {
@@ -176,7 +191,9 @@ class MineHexTile extends AbstractHexTile {
         return new_hex_tile
     }
 
-    click() { }
+    click() {
+        if (!this.isClickable()) { return }
+    }
 }
 
 class HexTileHint {
@@ -201,8 +218,6 @@ class HexTileHint {
         this.tick = 0
         this.is_done = false
     }
-
-
 
     activate() {
         if (!this.hex_tile) {
@@ -313,11 +328,10 @@ class MineBoard {
     private detonated_hex_tile_list: HexTileList<MineHexTile>
     private revealed_hex_tile_list: HexTileList
     private hover_center_hex_tile_list: HexTileList
+    private vine_hex_tile_list: HexTileList
     private hint_list: HexTileHint[]
     accessor marked_mine_cnt: number
     private elm: HTMLElement
-    static readonly HEX_TILE_RADIUS: number = 26 // The radius length of a hex tile.
-    static readonly HEX_TILE_SPACING: number = 1 // The spacing between two hex tiles.
 
     constructor(size: number) {
         this.size = size
@@ -327,6 +341,7 @@ class MineBoard {
         this.detonated_hex_tile_list = new HexTileList<MineHexTile>()
         this.revealed_hex_tile_list = new HexTileList()
         this.hover_center_hex_tile_list = new HexTileList()
+        this.vine_hex_tile_list = new HexTileList()
         this.hint_list = []
         this.marked_mine_cnt = 0
         this.elm = document.querySelector('#mine-field')!
@@ -351,11 +366,40 @@ class MineBoard {
         this.mine_hex_tile_list.clear()
         this.number_hex_tile_list.clear()
         this.detonated_hex_tile_list.clear()
+        this.revealed_hex_tile_list.clear()
+        this.hover_center_hex_tile_list.clear()
+        this.vine_hex_tile_list.clear()
+        this.hint_list = []
+        this.marked_mine_cnt = 0
         removeElmChildren(this.elm)
     }
 
     getHexTiles(): AbstractHexTile[] {
         return this.hex_tile_list.clone()
+    }
+
+    getNormalSurfaceHexTiles(): AbstractHexTile[] {
+        const normal_hex_tile_list: AbstractHexTile[] = []
+
+        for (const hex_tile of this.hex_tile_list) {
+            if (hex_tile.getSurfaceType() === TileSurfaceType.NORMAL) {
+                normal_hex_tile_list.push(hex_tile)
+            }
+        }
+
+        return normal_hex_tile_list
+    }
+
+    getFlagHexTiles(): AbstractHexTile[] {
+        const flag_hex_tile_list: AbstractHexTile[] = []
+
+        for (const hex_tile of this.hex_tile_list) {
+            if (hex_tile.getSurfaceType() === TileSurfaceType.FLAG) {
+                flag_hex_tile_list.push(hex_tile)
+            }
+        }
+
+        return flag_hex_tile_list
     }
 
     /**
@@ -381,7 +425,6 @@ class MineBoard {
         while (hex_tile_queue.length !== 0) {
             const cur_hex_tile: AbstractHexTile = hex_tile_queue.shift()!
 
-            cur_hex_tile.createElm(MineBoard.HEX_TILE_RADIUS)
             this.hex_tile_list.push(cur_hex_tile)
 
             for (const hex_direction of HEX_DIRECTION_LIST) {
@@ -392,7 +435,7 @@ class MineBoard {
 
                     if (step <= this.size) {
                         const plane_pos: PlaneVector = cur_hex_tile.plane_coord.plus(
-                            convertHexVectorToPlaneVector(hex_direction, MineBoard.HEX_TILE_RADIUS)
+                            convertHexVectorToPlaneVector(hex_direction, AbstractHexTile.HEX_TILE_RADIUS)
                         )
 
                         hex_tile_visited_dict[hex_pos.getId()] = true
@@ -660,6 +703,9 @@ class MineBoard {
         }
     }
 
+    /**
+     * Auto set flags and click over the hex tiles that can be inferred.
+     */
     infer(origin_hex_tile_id: string) {
         const inferred_hex_tile_list: HexTileList = new HexTileList()
         const origin_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(origin_hex_tile_id)
@@ -684,7 +730,9 @@ class MineBoard {
             }
         }
 
-        if (predicted_mine_cnt === origin_hex_tile.num) { // If the number of predicted mines equals to the number on the origin hex tile.
+        if (predicted_mine_cnt === origin_hex_tile.num) {
+            // If the number of predicted mines equals to the number on the origin hex tile.
+            // Click the inferred hex tiles.
             let is_click_mine: boolean = false
 
             for (const inferred_hex_tile of inferred_hex_tile_list) {
@@ -707,7 +755,8 @@ class MineBoard {
 
                     if (!tmp_hex_tile) { continue }
 
-                    if (tmp_hex_tile.getSurfaceType() === TileSurfaceType.FLAG) { // If the hex tile has a flag, add it to the flag hex tile list.
+                    if (tmp_hex_tile.getSurfaceType() === TileSurfaceType.FLAG) {
+                        // If the hex tile has a flag, add it to the flag hex tile list.
                         flag_hex_tile_list.push(tmp_hex_tile)
                     }
                 }
@@ -729,8 +778,8 @@ class MineBoard {
                 }
             }
         } else if (predicted_mine_cnt + inferred_hex_tile_list.getLen() === origin_hex_tile.num) {
-            // If the number of predicted mines plus the number of inferred hex tiles equals to the number on the origin hex tile.
-
+            // If the number of predicted mines plus the number of inferred hex tiles equals to 
+            // the number on the origin hex tile. Set flags on the inferred hex tiles.
             for (const inferred_hex_tile of inferred_hex_tile_list) {
                 inferred_hex_tile.setFlag()
             }
@@ -777,6 +826,27 @@ class MineBoard {
     }
 }
 
-class HighlightHexTile { }
+class HighlightHexTile {
+    private elm: HTMLElement
+
+    constructor(plane_x: number, plane_y: number) {
+        const new_elm: HTMLElement = document.createElement('div')
+
+        new_elm.className = 'mask-hex'
+        new_elm.style.height = `${AbstractHexTile.HEX_TILE_RADIUS * 2 + AbstractHexTile.HEX_TILE_SPACING * 4}px`
+        new_elm.style.width = `${AbstractHexTile.HEX_TILE_RADIUS * Math.sqrt(3) + AbstractHexTile.HEX_TILE_SPACING * 4}px`
+        new_elm.style.left = `${plane_x - AbstractHexTile.HEX_TILE_SPACING * 2}px`
+        new_elm.style.top = `${plane_y - AbstractHexTile.HEX_TILE_SPACING * 2}px`
+        this.elm = new_elm
+    }
+
+    getElm(): HTMLElement {
+        return this.elm
+    }
+
+    remove() {
+        this.elm.remove()
+    }
+}
 
 export { AbstractHexTile, BlankHexTile, HexTileHint, HighlightHexTile, MineBoard, MineHexTile, NumHexTile, TileSurfaceType, TileType }
