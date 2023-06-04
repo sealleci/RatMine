@@ -122,9 +122,11 @@ class RatMineGame {
             } else if (hex_tile.type === TileType.NUMBER && hex_tile instanceof NumHexTile) {
                 this.hookOnClickingNumHexTile(hex_tile)
             } else if (hex_tile.type === TileType.BLANK && hex_tile instanceof BlankHexTile) {
-                const num_hex_tile_list: NumHexTile[] = this.mine_board.expandBlanks(hex_tile)
+                const [clicked_blank_hex_tile_num, unhandled_num_hex_tile_list] = this.mine_board.expandBlanks(hex_tile)
 
-                for (const num_hex_tile of num_hex_tile_list) {
+                this.total_score += clicked_blank_hex_tile_num * this.blank_hex_tile_reward
+
+                for (const num_hex_tile of unhandled_num_hex_tile_list) {
                     if (num_hex_tile.isClickable()) {
                         num_hex_tile.click()
                         this.hookOnClickingNumHexTile(num_hex_tile)
@@ -307,7 +309,18 @@ class RatMineGame {
             case 2:
                 if (this.mine_board.isHexTileHoverCenter(hex_tile.getId())) {
                     this.mine_board.releaseHover(hex_tile)
-                    this.mine_board.infer(hex_tile)
+                    const [unhandled_hex_tile_list, flag_unhandled_hex_tile_list] = this.mine_board.infer(hex_tile)
+
+                    for (const unhandled_hex_tile of unhandled_hex_tile_list) {
+                        this.hookOnClickingHexTile(unhandled_hex_tile)
+                    }
+
+                    for (const flag_unset_hex_tile of flag_unhandled_hex_tile_list) {
+                        this.hookOnSettingFlag(flag_unset_hex_tile)
+                    }
+
+                    this.updateMineNumDisplay()
+                    this.judgeFinish()
                 }
                 break
             default:

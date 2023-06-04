@@ -51,6 +51,11 @@ abstract class AbstractHexTile {
         this.surface_type = TileSurfaceType.REVEALED
     }
 
+    revealWrong() {
+        this.surface_type = TileSurfaceType.REVEALED
+        this.elm.classList.add('hex-wrong')
+    }
+
     getSurfaceType(): TileSurfaceType {
         return this.surface_type
     }
@@ -111,7 +116,16 @@ class BlankHexTile extends AbstractHexTile {
         super(TileType.BLANK, hex_x, hex_y, hex_z, plane_x, plane_y, step)
     }
 
-    click() { }
+    revealWrong() {
+        super.revealWrong()
+        this.setElmText('')
+    }
+
+    click() {
+        this.reveal()
+        this.setElmText('')
+        this.addElmClass('hex-active')
+    }
 }
 
 class NumHexTile extends AbstractHexTile {
@@ -143,6 +157,11 @@ class NumHexTile extends AbstractHexTile {
 
     updateElmText() {
         this.elm.textContent = this.num.toString()
+    }
+
+    revealWrong() {
+        super.revealWrong()
+        this.updateElmText()
     }
 
     click() {
