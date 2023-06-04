@@ -1,171 +1,309 @@
-import { MineBoard, MineHexTile, NumHexTile, TileSurfaceType, TileType, AbstractHexTile } from "@/utils/tile.ts"
+import LECI_IMG_0 from '@/assets/img/leci_0.svg'
+import LECI_IMG_1 from '@/assets/img/leci_1.svg'
+import LECI_IMG_2 from '@/assets/img/leci_2.svg'
+import LECI_IMG_3 from '@/assets/img/leci_3.svg'
+import { MineBoard } from "@/utils/board.ts"
+import { AbstractMovingRat, RatType, genMovingRat } from '@/utils/enemy.ts'
+import { AbstractHexTile, HexTileHint, MineHexTile, NumHexTile, TileSurfaceType, TileType } from "@/utils/tile.ts"
+import { convertTicksToTime, rollRange } from "@/utils/util.ts"
 
 class Game {
     private mine_board: MineBoard
-    accessor mine_num: number
+    accessor mine_set_num: number
+    private cur_tick: number
+    private tick_interval: number
+    private moving_rat_list: AbstractMovingRat[]
+    private hint_list: HexTileHint[]
+    private hint_gen_interval: number
+    private hint_gen_interval_compensation: number
+    private moving_rat_gen_interval: number
+    private moving_rat_gen_interval_compensation: number
+    private moving_rat_timer_tick_interval: number
+    private mine_detonated_penalty: number
+    private mine_swept_reward: number
+    private blank_hex_tile_reward: number
+    private number_hex_tile_reward_multiplier: number
+    private time_reward_multiplier: number
+    private total_score: number
+    private cur_level: number
+    private cur_time_lim: number
+    private main_timer: number | undefined
+    private moving_rat_timer: number | undefined
+    private hint_timer: number | undefined
 
     constructor() {
         this.mine_board = new MineBoard(6)
-        this.mine_num = 10
+        this.mine_set_num = 10
+        this.cur_tick = 0
+        this.tick_interval = 100
+        this.moving_rat_list = []
+        this.hint_list = []
+        this.hint_gen_interval = 3000
+        this.hint_gen_interval_compensation = 0
+        this.moving_rat_gen_interval = 20000
+        this.moving_rat_gen_interval_compensation = 0
+        this.moving_rat_timer_tick_interval = 25
+        this.mine_detonated_penalty = -50
+        this.mine_swept_reward = 5
+        this.blank_hex_tile_reward = 0
+        this.number_hex_tile_reward_multiplier = 1
+        this.time_reward_multiplier = 2
+        this.total_score = 0
+        this.cur_level = 1
+        this.cur_time_lim = 1000 * 60
+        this.main_timer = undefined
+        this.moving_rat_timer = undefined
+        this.hint_timer = undefined
     }
 
-    init() {
-        initGlobalVars()
-        this.updateMinesInfo()
-        this.updateScoreInfo()
-        this.updateTimeInfo()
-        this.setTimeLimInfo()
+    updateMineNumDisplay() {
+        const elm: HTMLElement | null = document.querySelector<HTMLElement>('#mine-block>.info')
 
-        this.mine_board.init()
+        if (elm) {
+            elm.textContent = (this.mine_board.getMineNum() - this.mine_board.marked_mine_cnt - this.mine_board.getDetonatedMineNum()).toString()
+        }
+    }
+
+    updateScoreDisplay() {
+        const elm: HTMLElement | null = document.querySelector<HTMLElement>('#score-block>.info')
+
+        if (elm) {
+            elm.textContent = this.total_score.toString()
+        }
+    }
+
+    updateTimeDisplay() {
+        const elm: HTMLElement | null = document.querySelector<HTMLElement>('#time-block>.info')
+
+        if (elm) {
+            elm.textContent = convertTicksToTime(this.cur_tick, this.tick_interval)
+        }
+    }
+
+    updateTimeLimDisplay() {
+        const elm: HTMLElement | null = document.querySelector<HTMLElement>('#time-lim-block>.info')
+
+        if (elm) {
+            elm.textContent = convertTicksToTime(this.cur_time_lim / this.tick_interval, this.tick_interval)
+        }
+    }
+
+    tick() {
+        if (this.cur_tick % Math.floor(1000 / this.tick_interval) === 0) {
+            this.updateTimeDisplay()
+        }
+
+        if (this.cur_tick % Math.floor((this.hint_gen_interval - this.hint_gen_interval_compensation) / this.tick_interval) === 0) {
+            this.mine_board.genHint()
+        }
+
+        if (
+            this.cur_tick % Math.floor((this.moving_rat_gen_interval - this.moving_rat_gen_interval_compensation) / this.tick_interval) === 0 &&
+            this.cur_tick != 0
+        ) {
+            const rnd: number = rollRange(1, 12)
+            let new_moving_rat: AbstractMovingRat | null = null
+
+            if (rnd <= 9) {
+                new_moving_rat = genMovingRat(RatType.LIL_RAT, this.mine_board.selectTargetHexTiles(false))
+            } else {
+                new_moving_rat = genMovingRat(RatType.BIG_RAT, this.mine_board.selectTargetHexTiles(true))
+            }
+
+            if (new_moving_rat) {
+                new_moving_rat.getElm().addEventListener('click', () => {
+                    new_moving_rat?.onClick()
+                })
+                this.moving_rat_list.push(new_moving_rat)
+                this.mine_board.getElm().appendChild(new_moving_rat.getElm())
+            }
+        }
+
+        this.cur_tick += 1
+    }
+
+    tickMovingRats() {
+        if (this.moving_rat_list.length !== 0) { return }
+
+        for (let i = this.moving_rat_list.length - 1; i >= 0; i -= 1) {
+            this.moving_rat_list[i].run(this.moving_rat_timer_tick_interval)
+
+            if (this.moving_rat_list[i].isDone()) {
+                this.moving_rat_list.splice(i, 1)
+            }
+        }
+    }
+
+    tickHints() {
+        if (this.hint_list.length === 0) { return }
+
+        for (let i = this.hint_list.length - 1; i >= 0; i -= 1) {
+            this.hint_list[i].activate()
+
+            if (this.hint_list[i].isDone()) {
+                this.hint_list.splice(i, 1)
+            }
+        }
     }
 
     initTimers() {
-
+        this.main_timer = window.setInterval(this.tick, this.tick_interval)
+        this.moving_rat_timer = window.setInterval(this.tickMovingRats, this.moving_rat_timer_tick_interval)
+        this.hint_timer = window.setInterval(this.tickHints, HexTileHint.TICK_INTERVAL)
     }
 
-    updateMinesInfo() {
-        const elm: HTMLElement | null = document.querySelector('#mine-block>.info')
+    clearTimers() {
+        window.clearInterval(this.main_timer)
+        window.clearInterval(this.moving_rat_timer)
+        window.clearInterval(this.hint_timer)
+    }
 
-        if (elm) {
-            elm.textContent = (mine_num - cur_mines - deaths_mp.length).toString()
+    bindHexTileMouseDownEvent(hex_tile: AbstractHexTile) {
+        if (this.mine_board.isBlankBoard()) {
+            this.processAfterFirstClick(hex_tile.getId())
+        }
+
+        hex_tile.click()
+
+        if (hex_tile instanceof MineHexTile) {
+            this.total_score += this.mine_detonated_penalty
+            this.updateScoreDisplay()
+            this.updateMineNumDisplay()
+            this.judgeFinish()
+        } else if (hex_tile instanceof NumHexTile) {
+            this.total_score += hex_tile.num * this.number_hex_tile_reward_multiplier + this.blank_hex_tile_reward
+            this.updateScoreDisplay()
+            this.judgeFinish()
         }
     }
 
-    updateScoreInfo() {
-        const elm: HTMLElement | null = document.querySelector('#score-block>.info')
+    bindHexTileMouseUpEvent(hex_tile: AbstractHexTile, button: number) {
+        if (
+            hex_tile.getSurfaceType() !== TileSurfaceType.REVEALED ||
+            hex_tile.type !== TileType.NUMBER
+        ) { return }
 
-        if (elm) {
-            elm.textContent = total_score.toString()
+        switch (button) {
+            case 0:
+            case 2:
+                if (this.mine_board.isHexTileHoverCenter(hex_tile.getId())) {
+                    this.mine_board.releaseHover(hex_tile.getId())
+                    this.mine_board.infer(hex_tile.getId())
+                }
+                break
+            default:
+                break
         }
     }
 
-    updateTimeInfo() {
-        const elm: HTMLElement | null = document.querySelector('#time-block>.info')
+    bindHexTileMouseLeaveEvent(hex_tile: AbstractHexTile, button: number) {
+        if (
+            hex_tile.getSurfaceType() !== TileSurfaceType.REVEALED ||
+            hex_tile.type !== TileType.NUMBER
+        ) { return }
 
-        if (elm) {
-            elm.textContent = calcTime(cur_time, intv)
-        }
-    }
-
-    setTimeLimInfo() {
-        const elm: HTMLElement | null = document.querySelector('#time-lim-block>.info')
-
-        if (elm) {
-            elm.textContent = calcTime(time_lim / intv, intv)
+        switch (button) {
+            case 0:
+            case 2:
+                if (this.mine_board.isHexTileHoverCenter(hex_tile.getId())) {
+                    this.mine_board.releaseHover(hex_tile.getId())
+                }
+                break
+            default:
+                break
         }
     }
 
     processAfterFirstClick(origin_hex_tile_id: string) {
-        this.mine_board.genMines(this.mine_num, origin_hex_tile_id)
+        this.mine_board.genMines(this.mine_set_num, origin_hex_tile_id)
         this.mine_board.markNum()
         this.initTimers()
     }
 
-    bind() {
+    bindHexTileEvents() {
         for (const hex_tile of this.mine_board.getHexTiles()) {
             const hex_tile_elm = hex_tile.getElm()
-
-            if (!hex_tile_elm) { continue }
 
             hex_tile_elm.addEventListener('mousedown', () => {
-                if (this.mine_board.isBlankBoard()) {
-                    this.processAfterFirstClick(hex_tile.getId())
-                }
-
-                hex_tile.click()
-
-                if (hex_tile instanceof MineHexTile) {
-                    total_score += mine_penalty
-                    updateScoreInfo()
-                    updateMinesInfo()
-                    judgeFinish()
-                } else if (hex_tile instanceof NumHexTile) {
-                    total_score += nums_dic[id] * number_reward + space_reward
-                    updateScoreInfo()
-                    judgeFinish()
-                }
+                this.bindHexTileMouseDownEvent(hex_tile)
             })
             hex_tile_elm.addEventListener('mouseup', (evt: MouseEvent) => {
-                if (
-                    hex_tile.getSurfaceType() !== TileSurfaceType.REVEALED ||
-                    hex_tile.type !== TileType.NUMBER
-                ) { return }
-
-                switch (evt.button) {
-                    case 0:
-                    case 2:
-                        if (this.mine_board.isHexTileHoverCenter(hex_tile.getId())) {
-                            hoverRelease(id)
-                            inferArea(id)
-                        }
-                        break
-                    default:
-                        break
-                }
+                this.bindHexTileMouseUpEvent(hex_tile, evt.button)
             })
-            hex_tile_elm.addEventListener('mouseleave', () => {
-                if (
-                    hex_tile.getSurfaceType() !== TileSurfaceType.REVEALED ||
-                    hex_tile.type !== TileType.NUMBER
-                ) { return }
-
-                switch (evt.button) {
-                    case 0:
-                    case 2:
-                        if (this.mine_board.isHexTileHoverCenter(hex_tile.getId())) {
-                            hoverRelease(id)
-                        }
-                        break
-                    default:
-                        break
-                }
+            hex_tile_elm.addEventListener('mouseleave', (evt: MouseEvent) => {
+                this.bindHexTileMouseLeaveEvent(hex_tile, evt.button)
             })
-
-            // document.querySelector('#mine-field')?.appendChild(new_hex_elm)
         }
     }
 
-    unbind() {
-        for (const hex_tile of this.mine_board.getHexTiles()) {
-            const hex_tile_elm = hex_tile.getElm()
+    calcTimeReward() {
+        const time_lim_tick_num: number = this.cur_time_lim / this.tick_interval
+        const tick_per_second: number = 1000 / this.tick_interval
 
-            if (!hex_tile_elm) { continue }
-
-            // Remove event listeners, note that the function should be the same as the one added.
-            hex_tile_elm.removeEventListener('mousedown', () => { })
-            hex_tile_elm.removeEventListener('mouseup', () => { })
-            hex_tile_elm.removeEventListener('mouseleave', () => { })
+        if (this.cur_tick < time_lim_tick_num) {
+            this.total_score += Math.ceil(
+                Math.abs(
+                    Math.floor(time_lim_tick_num / tick_per_second) - Math.floor(this.cur_tick / tick_per_second)
+                ) * this.time_reward_multiplier
+            )
         }
     }
 
-    render() {
-        this.mine_board.genBlankBoard(0, 0)
-        this.bind()
+    init() {
+        this.mine_board.init()
+        this.cur_tick = 0
+        this.total_score = 0
+        this.moving_rat_list = []
+        this.hint_list = []
+        this.updateMineNumDisplay()
+        this.updateScoreDisplay()
+        this.updateTimeDisplay()
+        this.updateTimeLimDisplay()
+        this.mine_board.genBlankBoard()
+        this.mine_board.render()
+        this.bindHexTileEvents()
     }
 
-    tick() {
-        if (cur_time % Math.floor(1000 / intv) == 0) {
-            updateTimeInfo()
-        }
-        if (cur_time % Math.floor((hint_intv - hint_intv_corr) / intv) == 0) { //&& cur_time != 0
-            genHint()
-        }
-
-        if (cur_time % Math.floor((rat_intv - rat_intv_corr) / intv) == 0 && cur_time != 0) {
-            let rnd = rangeRnd(1, 12)
-            if (rnd <= 9) {
-                genRat(0)
-            } else {
-                genRat(1)
-            }
-
-        }
-        cur_time += 1
+    clearLevel() {
+        this.clearTimers()
+        this.init()
     }
 
     judgeFinish() {
+        if (this.mine_board.getRevealedHexTileNum() === this.mine_board.getHexTileNum() - this.mine_board.getMineNum()) {
+            this.total_score += (this.mine_board.getMineNum() - this.mine_board.getDetonatedMineNum()) * this.mine_swept_reward
+            this.calcTimeReward()
+            this.updateScoreDisplay()
+            this.updateMineNumDisplay()
+            this.clearLevel()
+        }
+    }
+
+    flyLeci() {
+        const LECI_IMG_LIST: string[] = [LECI_IMG_0, LECI_IMG_1, LECI_IMG_2, LECI_IMG_3]
+        const leci_elm: HTMLImageElement = document.querySelector<HTMLImageElement>('#leci')!
+        let leci_cnt: number = 0
+        let cnt_pos: number = 1
+        const pos_dict: { left_list: number[], top_list: number[], angle_list: number[] } = {
+            left_list: [0, 700, 1300, 700],
+            top_list: [500, 1000, 500, 0],
+            angle_list: [-45, -135, -225, -315]
+        }
+
+        const leci_timer: number = window.setInterval(() => {
+            leci_elm.src = LECI_IMG_LIST[leci_cnt]
+            leci_cnt += 1
+            leci_cnt %= 4
+        }, 20)
+        const leci_timer2: number = window.setInterval(() => {
+            leci_elm.removeAttribute('style')
+            leci_elm.style.left = `${pos_dict.left_list[cnt_pos]}px`
+            leci_elm.style.top = `${pos_dict.top_list[cnt_pos]}px`
+            leci_elm.style.transform = `rotate(${pos_dict.angle_list[cnt_pos]}deg)`
+            cnt_pos += 4
+            cnt_pos %= 4
+        }, 3000)
     }
 }
-
 
 export { Game }

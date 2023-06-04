@@ -111,5 +111,4 @@ function uniqueArray<T>(array: T[]): T[] {
     return Array.from(new Set(array))
 }
 
-export { convertSecondsToTime, padLeft, padRight, rollRange, sleep, uniqueArray }
-
+export { convertSecondsToTime, convertTicksToTime, padLeft, padRight, rollRange, sleep, uniqueArray }

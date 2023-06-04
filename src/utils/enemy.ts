@@ -1,9 +1,9 @@
 import BIG_RAT_IMG from '@/assets/img/big_rat.svg'
 import LIL_RAT_IMG from '@/assets/img/lil_rat.svg'
 import { PlaneVector } from "@/utils/geometry.ts"
-import { AbstractHexTile, TileSurfaceType, HighlightHexTile, MineBoard } from "@/utils/tile.ts"
-import { rollRange } from '@/utils/util.ts'
 import { calcRotationAngle } from '@/utils/math.ts'
+import { AbstractHexTile, HighlightHexTile, TileSurfaceType } from "@/utils/tile.ts"
+import { rollRange } from '@/utils/util.ts'
 
 enum RatType {
     LIL_RAT = 'lil_rat',
@@ -30,7 +30,7 @@ abstract class AbstractMovingRat extends AbstractRat {
     protected readonly elm: HTMLElement
     protected readonly img_elm: HTMLImageElement
     protected center_hex_tile: AbstractHexTile
-    protected tick: number
+    protected cur_tick: number
     protected is_done: boolean // Determine whether the rat has reached the target hex tile or not
     protected required_click_cnt: number
     protected prev_click_cnt: number
@@ -56,7 +56,7 @@ abstract class AbstractMovingRat extends AbstractRat {
         this.origin_pos = origin_pos
         this.highlight_hex_tile_list = highlight_hex_tile_list
         this.center_hex_tile = this.target_hex_tile_list[0]
-        this.tick = 0
+        this.cur_tick = 0
         this.is_done = false
         this.prev_click_cnt = -1
         this.cur_click_cnt = 0
@@ -83,6 +83,14 @@ abstract class AbstractMovingRat extends AbstractRat {
         )}deg)`
         this.elm.appendChild(document.createElement('span'))
         this.elm.appendChild(this.img_elm)
+    }
+
+    isDone(): boolean {
+        return this.is_done
+    }
+
+    onClick() {
+        this.cur_click_cnt += 1
     }
 
     revealTargetHexTiles() {
@@ -112,7 +120,7 @@ abstract class AbstractMovingRat extends AbstractRat {
     }
 
     updateCntText() {
-        const span_elm: HTMLElement | null = this.elm.querySelector('span')
+        const span_elm: HTMLElement | null = this.elm.querySelector<HTMLElement>('span')
 
         if (span_elm) {
             span_elm.textContent = `${this.required_click_cnt - this.cur_click_cnt}`
@@ -127,8 +135,8 @@ abstract class AbstractMovingRat extends AbstractRat {
         const cos_x: number = distance.x / Math.sqrt(Math.pow(distance.x, 2) + Math.pow(distance.y, 2))
         const sin_y: number = distance.y / Math.sqrt(Math.pow(distance.x, 2) + Math.pow(distance.y, 2))
         const cur_pos: PlaneVector = new PlaneVector(
-            this.origin_pos.x + (this.speed * cos_x) * run_interval / 1000 * this.tick,
-            this.origin_pos.y + (this.speed * sin_y) * run_interval / 1000 * this.tick
+            this.origin_pos.x + (this.speed * cos_x) * run_interval / 1000 * this.cur_tick,
+            this.origin_pos.y + (this.speed * sin_y) * run_interval / 1000 * this.cur_tick
         )
         let remaining_hex_tile_num: number = 0
         let is_required_click_cnt_reached: boolean = false
@@ -164,7 +172,7 @@ abstract class AbstractMovingRat extends AbstractRat {
             this.removeHighlightHexTiles()
         }
 
-        this.tick += 1
+        this.cur_tick += 1
     }
 
     getElm(): HTMLElement {
@@ -198,45 +206,16 @@ class BigRat extends AbstractMovingRat {
     }
 }
 
-function genMovingRat(type: RatType, mine_board: MineBoard): AbstractMovingRat | null {
-    let target_hex_tile_list: AbstractHexTile[] = []
+function genMovingRat(type: RatType, target_hex_tile_list: AbstractHexTile[]): AbstractMovingRat | null {
     let new_moving_rat: AbstractMovingRat | null = null
 
-    function selectTargetHexTiles(is_include_hover_tiles: boolean = false): AbstractHexTile[] {
-        const candidate_hex_tile_list: AbstractHexTile[] = mine_board.getNormalSurfaceHexTiles().concat(mine_board.getFlagHexTiles())
-        const selected_hex_tile_list: AbstractHexTile[] = []
-        const rnd_idx: number = rollRange(0, candidate_hex_tile_list.length - 1)
-        const center_hex_tile: AbstractHexTile = candidate_hex_tile_list[rnd_idx]
-
-        selected_hex_tile_list.push(center_hex_tile)
-
-        if (is_include_hover_tiles) {
-            for (const hover_hex_tile of mine_board.getHoverTiles(center_hex_tile.getId(), true)) {
-                selected_hex_tile_list.push(hover_hex_tile)
-            }
-        }
-
-        return selected_hex_tile_list
-    }
-
     function getOriginPos(): PlaneVector {
-        const stage_elm: HTMLElement | null = document.querySelector('#main-stage')
+        const stage_elm: HTMLElement | null = document.querySelector<HTMLElement>('#main-stage')
 
         return new PlaneVector(
             (stage_elm ? stage_elm.clientWidth : 1500) / 2 - 150,
             rollRange(0, 0 + 14 * AbstractHexTile.HEX_TILE_RADIUS)
         )
-    }
-
-    switch (type) {
-        case RatType.LIL_RAT:
-            target_hex_tile_list = selectTargetHexTiles(false)
-            break
-        case RatType.BIG_RAT:
-            target_hex_tile_list = selectTargetHexTiles(true)
-            break
-        default:
-            break
     }
 
     if (target_hex_tile_list.length > 0) {
@@ -273,4 +252,4 @@ function genMovingRat(type: RatType, mine_board: MineBoard): AbstractMovingRat |
     return new_moving_rat
 }
 
-export { BigRat, LilRat }
+export { AbstractMovingRat, RatType, genMovingRat }

@@ -192,68 +192,6 @@ function bindHex() {
     });
 }
 
-function clickOfRat(id) {
-    if (hexs[hexs_mp.indexOf(id)].surface == 2) {
-        unsetFlag(id);
-    }
-
-    if (isClickable(id)) {
-        clickCell(id);
-    }
-}
-
-function genRat(type) {
-    function drawRat(tar, spwn, gap, img_file, mul) {
-        let $rat = $(`<div class="run-rat"><span></span><img type="image/svg+xml" src="${img_base_root}/${img_file}" /></div>`);
-        $($rat).data('clicked', 0);
-        $($rat).on('click', function () {
-            let cur = parseInt($($rat).data('clicked'));
-            $($rat).data('clicked', cur + 1);
-        });
-        $('#mine-field').append($($rat));
-
-        return $rat;
-    }
-
-    let this_rat = rat_type_dic[type];
-    let diff = draw_base - base;
-    let tar = new PlaneVectorinate(5, 5);
-    let spwn = new PlaneVectorinate(5, 5);
-    let s_hex = selectHexs(this_rat['tars'] === 1 ? false : true);
-    if (s_hex.length > 0) {
-        tar = new PlaneVectorinate(s_hex[0].plnc.x, s_hex[0].plnc.y);
-        spwn = getSpawn(tar);
-        let $hihex = [];
-        for (let i in s_hex) {
-            $hihex.push(drawHighlightHex(s_hex[i].plnc, diff));
-        }
-        let $rat = drawRat(tar, spwn, diff, this_rat['img_file'], this_rat['mul']);
-        //console.log($rat);
-        let the_rat = new Rat(type, this_rat['speed'], s_hex, spwn, $hihex, $rat);
-        rats.push(the_rat);
-    }
-}
-
-function tick() {
-    if (cur_time % Math.floor(1000 / intv) == 0) {
-        updateTimeInfo();
-    }
-    if (cur_time % Math.floor((hint_intv - hint_intv_corr) / intv) == 0) { //&& cur_time != 0
-        genHint();
-    }
-
-    if (cur_time % Math.floor((rat_intv - rat_intv_corr) / intv) == 0 && cur_time != 0) {
-        let rnd = rangeRnd(1, 12);
-        if (rnd <= 9) {
-            genRat(0);
-        } else {
-            genRat(1);
-        }
-
-    }
-    cur_time++;
-}
-
 //工具函数
 
 function revealAll() {
@@ -263,112 +201,14 @@ function revealAll() {
     }
 }
 
-function setSize(size_) {
-    size = size_;
-}
-
-function setMineCnt(mine_) {
-    mine_cnt = mine_;
-}
-//分数判定
-function changeScore(val) {
-    total_score += val;
-}
-
-function getTimeReward() {
-    let lim = time_lim / intv;
-    let div = 1000 / intv;
-
-    if (cur_time < lim) {
-        total_score += Math.ceil(
-            Math.abs(
-                Math.floor(lim / div) - Math.floor(cur_time / div)
-            ) * time_reward
-        );
-    }
-}
-
-//游戏
-function judgeFinish() {
-    actives_mp = unique(actives_mp);
-    deaths_mp = unique(deaths_mp);
-    //console.log(actives_mp.length, hexs.length - mine_cnt);
-
-    if (actives_mp.length == hexs.length - mine_cnt) {
-        //&& cur_mines + deaths_mp.length == mine_cnt
-        total_score += (mine_cnt - deaths_mp.length) * mine_reward;
-        getTimeReward();
-
-        updateScoreInfo();
-        updateMinesInfo();
-
-        clearLevel();
-    }
-}
-
-function clearLevel() {
-    clearTimer();
-    unbindHex();
-    //alert(`clear!\nscore: ${total_score}`);
-    init();
-}
-
 //init
 function initGlobalVars() {
-    hexs = [];
-    hexs_mp = [];
-
-    mines = [];
-    mines_mp = [];
-
-    nums_dic = {};
-    nums_mp = [];
-
-    deaths_mp = [];
-    flags_mp = [];
-    actives_mp = [];
-    vines_mp = [];
-    hovercenters_md = [];
-
-    rats = [];
-    hints = [];
-
-    cur_time = 0;
-    cur_mines = 0;
-
-    //分数部分
-    if (total_score < 0) {
-        total_score = 0
-    } else {
-        total_score = 0;
-    }
     grid_score = 0;
     mine_clear_score = 0;
     mine_death_score = 0;
     rat_score = 0;
     time_score = 0;
     extra_score = 0;
-}
-
-function init() {
-    initGlobalVars();
-
-    updateMinesInfo();
-    updateScoreInfo();
-    updateTimeInfo();
-    setTimeLimInfo();
-    // /size = 20;
-    $('#mine-field').empty();
-    let x2 = -(base * sqrt3 / 2);
-    let y2 = draw_base * 1.5 * size;
-    //hexs = bfs(x, y, size);
-    hexs = bfs(x2, y2, size);
-    for (let i in hexs) {
-        hexs_mp.push(hexs[i].hexc.mapping(size));
-    }
-
-
-    bindHex();
 }
 
 function initAfterClick(id) {
@@ -385,189 +225,19 @@ function initAfterClick(id) {
     initTimer();
 }
 
-function destroyLevel() {
-    clearTimer();
-    $('#mine-field').empty();
-    initGlobalVars();
-    updateMinesInfo();
-    updateScoreInfo();
-    updateTimeInfo();
-}
-
-function runRats() {
-    if (rats.length != 0) {
-        for (let i in rats) {
-            rats[i].run(run_intv);
-            if (rats[i].finished) {
-                rats.splice(i, 1);
-            }
-        }
-    }
-}
-
-function runHints() {
-    if (hints.length != 0) {
-        for (let i in hints) {
-            hints[i].run();
-            if (hints[i].finished) {
-                hints.splice(i, 1);
-            }
-        }
-    }
-}
-
-function initTimer() {
-    main_timer = setInterval(function () {
-        tick();
-    }, intv);
-
-    rat_timer = setInterval(function () {
-        runRats();
-    }, run_intv);
-
-    hint_timer = setInterval(function () {
-        runHints();
-    }, hint_tick_intv);
-}
-
-//重置
-function clearTimer() {
-    clearInterval(main_timer);
-    clearInterval(rat_timer);
-    clearInterval(hint_timer);
-}
-
 //颜色
-var normal_color = 'rgb(53, 169, 169)';
-var active_color = '#f7acbc';
-var hover_color = 'rgb(103, 228, 228)';
-var press_color = 'rgb(248, 123, 150)';
-var death_color = '#594c6d';
 var num_colors = ['#845538', '#426ab3', '#1d953f'];
-
-//棋盘属性
-var base = 26; //棋盘格子大小
-var draw_base = base + 1; //算上间隙的格子大小
-var mine_cnt = 30; //雷数
-
-//数学常量
-var sqrt3 = Math.sqrt(3);
-var sqrt2 = Math.sqrt(2);
-
-//方向
-var hex_dirs = [
-    new HexVectorinate(-1, 0, 1),
-    new HexVectorinate(0, -1, 1),
-    new HexVectorinate(1, -1, 0),
-    new HexVectorinate(1, 0, -1),
-    new HexVectorinate(0, 1, -1),
-    new HexVectorinate(-1, 1, 0)
-];
-var plane_dirs = [
-    new PlaneVectorinate(-sqrt3 / 2 * draw_base, -3 / 2 * draw_base),
-    new PlaneVectorinate(sqrt3 / 2 * draw_base, -3 / 2 * draw_base),
-    new PlaneVectorinate(sqrt3 * draw_base, 0),
-    new PlaneVectorinate(sqrt3 / 2 * draw_base, 3 / 2 * draw_base),
-    new PlaneVectorinate(-sqrt3 / 2 * draw_base, 3 / 2 * draw_base),
-    new PlaneVectorinate(-sqrt3 * draw_base, 0)
-];
-
-//时间
-var intv = 100; //帧率
-
-var hint_intv = 30000; //提示间隔
-var hint_intv_corr = 0;
-var hint_long = 4500; //提示动画时长
-var hint_tick_intv = 10; //提示的动画灵敏度
-
-var rat_intv = 20000; //耗子出现间隔
-var rat_intv_corr = 0;
-var run_intv = 25; //耗子计时器间隔
-
-//分数
-var mine_penalty = -50; //点雷惩罚
-var mine_reward = 5; //扫雷奖励
-
-var space_reward = 0; //空格倍率
-var number_reward = 1; //数字倍率
-var time_reward = 2; //时间奖励倍率
-
-//各类格子
-var hexs = [];
-var hexs_mp = [];
-var mines = [];
-var mines_mp = [];
-var nums_dic = {};
-var nums_mp = [];
-var deaths_mp = [];
-var flags_mp = [];
-var actives_mp = [];
-var vines_mp = [];
-var hovercenters_md = [];
-
-var rats = [];
-var hints = [];
-
-//flags
-
-//全局
-var cur_level = 1; //当前关卡
-var time_lim = 1000 * 60; //当前时限
-var size = 6; //从中心向外扩展格数
-var cur_mines = 0; //标上的旗帜数
 
 var cur_time = 0; //当前时间
 var total_score = 0; //当前分数
-var grid_score = 0; //翻开格子的分
 
+var grid_score = 0; //翻开格子的分
 var mine_clear_score = 0; //清理雷的分
 var mine_death_score = 0; //误踩雷的分
 var rat_score = 0; //老鼠奖励分
 var time_score = 0; //时间奖励分
 var extra_score = 0; //额外分
 
-var lilrat_clicks = 3; //小鼠点击次数
-var bigrat_clicks = 10; //大鼠点击次数
-
-//计时器
-var main_timer = undefined; //主要计时器
-var rat_timer = undefined; //老鼠计时器
-var hint_timer = undefined; //提示计时器
-
-//图像
-var img_base_root = './img';
-var defaultImgDir = new PlaneVectorinate(0, 1);
-var rat_type_dic = {
-    0: { 'img_file': 'lil_rat.svg', 'speed': 120, 'tars': 1, 'mul': 1.5 },
-    1: { 'img_file': 'big_rat.svg', 'speed': 150, 'tars': 7, 'mul': 2.5 }
-};
-
-$(function () {
-    //init();
-});
-//     var cnt_leci = 0;
-//     var timer_leci = setInterval(function() {
-//         $('#leci').attr('src', `./img/leci_${cnt_leci}.svg`);
-//         cnt_leci++;
-//         cnt_leci %= 4;
-//     }, 20);
-//     var pos_dic = {
-//         'l': [0, 700, 1300, 700],
-//         't': [500, 1000, 500, 0],
-//         'deg': [-45, -135, -225, -315]
-//     };
-//     var cnt_pos = 1;
-//     var timer_leci2 = setInterval(function() {
-//         $('#leci').removeAttr('style');
-//         $('#leci').css({
-//             'left': pos_dic['l'][cnt_pos],
-//             'top': pos_dic['t'][cnt_pos],
-//             'transform': `rotate(${pos_dic['deg'][cnt_pos]}deg)`
-//         });
-//         cnt_pos++;
-//         cnt_pos %= 4;
-//     }, 3000);
-//
 </script>
 
 <template>
