@@ -1,9 +1,9 @@
 import BIG_RAT_IMG from '@/assets/img/big_rat.svg'
 import LIL_RAT_IMG from '@/assets/img/lil_rat.svg'
-import { PlaneVector } from "@/utils/geometry.ts"
-import { calcRotationAngle } from '@/utils/math.ts'
-import { AbstractHexTile, HighlightHexTile, TileSurfaceType } from "@/utils/tile.ts"
-import { rollRange } from '@/utils/util.ts'
+import { PlaneVector } from "@/ts/geometry.ts"
+import { calcRotationAngle } from '@/ts/math.ts'
+import { AbstractHexTile, HighlightHexTile, TileSurfaceType } from '@/ts/tile.ts'
+import { rollRange } from '@/ts/util.ts'
 
 enum RatType {
     LIL_RAT = 'lil_rat',

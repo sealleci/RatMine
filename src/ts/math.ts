@@ -1,4 +1,4 @@
-import { PlaneVector } from "@/utils/geometry.ts"
+import { PlaneVector } from '@/ts/geometry.ts'
 
 /**
  * Calculate the rotation angle.

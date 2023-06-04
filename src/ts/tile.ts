@@ -1,6 +1,7 @@
 import FLAG_IMG from '@/assets/img/flag.svg'
-import { addElmClass, removeElmChildren, removeElmClass } from '@/utils/dom.ts'
-import { HexVector, PlaneVector } from '@/utils/geometry.ts'
+import { addElmClass, removeElmChildren, removeElmClass } from '@/ts/dom.ts'
+import { HexVector, PlaneVector } from '@/ts/geometry.ts'
+import MINE_DETONATED_IMG from '@/assets/img/mine_detonated.svg'
 
 enum TileType {
     BLANK = 'blank',
@@ -63,46 +64,30 @@ abstract class AbstractHexTile {
     }
 
     addElmClass(class_name: string) {
-        if (this.elm) {
-            addElmClass(this.elm, class_name)
-        }
+        addElmClass(this.elm, class_name)
     }
 
     removeElmClass(class_name: string) {
-        if (this.elm) {
-            removeElmClass(this.elm, class_name)
-        }
+        removeElmClass(this.elm, class_name)
     }
 
     setElmText(text: string) {
-        if (this.elm) {
-            this.elm.textContent = text
-        }
+        this.elm.textContent = text
     }
 
     setFlag() {
-        if (this.surface_type === TileSurfaceType.NORMAL) {
-            this.surface_type = TileSurfaceType.FLAG
+        const img_elm: HTMLImageElement = document.createElement('img')
 
-            if (this.elm) {
-                const img_elm: HTMLImageElement = document.createElement('img')
-
-                img_elm.src = FLAG_IMG
-                img_elm.style.height = `${AbstractHexTile.HEX_TILE_RADIUS * 1.5}px`
-                img_elm.style.width = `${AbstractHexTile.HEX_TILE_RADIUS * 1.5}px`
-                this.elm.appendChild(img_elm)
-            }
-        }
+        this.surface_type = TileSurfaceType.FLAG
+        img_elm.src = FLAG_IMG
+        img_elm.style.height = `${AbstractHexTile.HEX_TILE_RADIUS * 1.5}px`
+        img_elm.style.width = `${AbstractHexTile.HEX_TILE_RADIUS * 1.5}px`
+        this.elm.appendChild(img_elm)
     }
 
     unsetFlag() {
-        if (this.surface_type === TileSurfaceType.FLAG) {
-            this.surface_type = TileSurfaceType.NORMAL
-
-            if (this.elm) {
-                removeElmChildren(this.elm)
-            }
-        }
+        this.surface_type = TileSurfaceType.NORMAL
+        removeElmChildren(this.elm)
     }
 
     isClickable(): boolean {
@@ -126,13 +111,12 @@ class BlankHexTile extends AbstractHexTile {
         super(TileType.BLANK, hex_x, hex_y, hex_z, plane_x, plane_y, step)
     }
 
-    click() {
-        if (!this.isClickable()) { return }
-    }
+    click() { }
 }
 
 class NumHexTile extends AbstractHexTile {
     accessor num: number
+    private static readonly NUM_COLOR_LIST: string[] = ['#845538', '#426ab3', '#1d953f']
 
     constructor(hex_x: number, hex_y: number, hex_z: number, plane_x: number, plane_y: number, step: number, num: number) {
         super(TileType.NUMBER, hex_x, hex_y, hex_z, plane_x, plane_y, step)
@@ -158,13 +142,13 @@ class NumHexTile extends AbstractHexTile {
     }
 
     updateElmText() {
-        if (this.elm) {
-            this.elm.textContent = this.num.toString()
-        }
+        this.elm.textContent = this.num.toString()
     }
 
     click() {
-        if (!this.isClickable()) { return }
+        this.updateElmText()
+        this.elm.classList.add('hex-active')
+        this.elm.style.color = NumHexTile.NUM_COLOR_LIST[this.num % 3]
     }
 }
 
@@ -191,7 +175,13 @@ class MineHexTile extends AbstractHexTile {
     }
 
     click() {
-        if (!this.isClickable()) { return }
+        const img_elm: HTMLImageElement = document.createElement('img')
+
+        img_elm.src = MINE_DETONATED_IMG
+        img_elm.classList.add('hex-death')
+        img_elm.style.height = `${AbstractHexTile.HEX_TILE_RADIUS * 1.5}px`
+        img_elm.style.width = `${AbstractHexTile.HEX_TILE_RADIUS * 1.5}px`
+        this.elm.appendChild(img_elm)
     }
 }
 

@@ -2,12 +2,12 @@ import LECI_IMG_0 from '@/assets/img/leci_0.svg'
 import LECI_IMG_1 from '@/assets/img/leci_1.svg'
 import LECI_IMG_2 from '@/assets/img/leci_2.svg'
 import LECI_IMG_3 from '@/assets/img/leci_3.svg'
-import { MineBoard } from "@/utils/board.ts"
-import { AbstractMovingRat, RatType, genMovingRat } from '@/utils/enemy.ts'
-import { AbstractHexTile, HexTileHint, MineHexTile, NumHexTile, TileSurfaceType, TileType } from "@/utils/tile.ts"
-import { convertTicksToTime, rollRange } from "@/utils/util.ts"
+import { MineBoard } from '@/ts/board.ts'
+import { AbstractMovingRat, RatType, genMovingRat } from '@/ts/enemy.ts'
+import { AbstractHexTile, BlankHexTile, HexTileHint, MineHexTile, NumHexTile, TileSurfaceType, TileType } from '@/ts/tile.ts'
+import { convertTicksToTime, rollRange } from '@/ts/util.ts'
 
-class Game {
+class RatMineGame {
     private mine_board: MineBoard
     accessor mine_set_num: number
     private cur_tick: number
@@ -88,6 +88,19 @@ class Game {
         }
     }
 
+    calcTimeReward() {
+        const time_lim_tick_num: number = this.cur_time_lim / this.tick_interval
+        const tick_per_second: number = 1000 / this.tick_interval
+
+        if (this.cur_tick < time_lim_tick_num) {
+            this.total_score += Math.ceil(
+                Math.abs(
+                    Math.floor(time_lim_tick_num / tick_per_second) - Math.floor(this.cur_tick / tick_per_second)
+                ) * this.time_reward_multiplier
+            )
+        }
+    }
+
     tick() {
         if (this.cur_tick % Math.floor(1000 / this.tick_interval) === 0) {
             this.updateTimeDisplay()
@@ -158,37 +171,123 @@ class Game {
         window.clearInterval(this.hint_timer)
     }
 
-    bindHexTileMouseDownEvent(hex_tile: AbstractHexTile) {
-        if (this.mine_board.isBlankBoard()) {
-            this.processAfterFirstClick(hex_tile.getId())
-        }
+    clearLevel() {
+        this.clearTimers()
+        this.mine_board.init()
+        this.cur_tick = 0
+        this.moving_rat_list = []
+        this.hint_list = []
+        this.updateMineNumDisplay()
+        this.updateScoreDisplay()
+        this.updateTimeDisplay()
+        this.updateTimeLimDisplay()
+    }
 
-        hex_tile.click()
-
-        if (hex_tile instanceof MineHexTile) {
-            this.total_score += this.mine_detonated_penalty
+    judgeFinish() {
+        if (this.mine_board.getRevealedHexTileNum() === this.mine_board.getHexTileNum() - this.mine_board.getMineNum()) {
+            this.total_score += (this.mine_board.getMineNum() - this.mine_board.getDetonatedMineNum()) * this.mine_swept_reward
+            this.calcTimeReward()
             this.updateScoreDisplay()
             this.updateMineNumDisplay()
-            this.judgeFinish()
-        } else if (hex_tile instanceof NumHexTile) {
-            this.total_score += hex_tile.num * this.number_hex_tile_reward_multiplier + this.blank_hex_tile_reward
-            this.updateScoreDisplay()
-            this.judgeFinish()
+            this.clearLevel()
+        }
+    }
+
+    private processAfterFirstClick(origin_hex_tile: AbstractHexTile) {
+        this.mine_board.genMines(this.mine_set_num, origin_hex_tile)
+        this.mine_board.markNum()
+        this.initTimers()
+    }
+
+    private clickNumHexTile(num_hex_tile: NumHexTile) {
+        this.mine_board.pushRevealedHexTile(num_hex_tile)
+        this.total_score += num_hex_tile.num * this.number_hex_tile_reward_multiplier + this.blank_hex_tile_reward
+        this.updateScoreDisplay()
+        this.judgeFinish()
+    }
+
+    bindHexTileMouseDownEvent(hex_tile: AbstractHexTile, button: number) {
+        if (this.mine_board.isBlankBoard()) {
+            this.processAfterFirstClick(hex_tile)
+        }
+
+        if (
+            hex_tile.type === TileType.NUMBER &&
+            hex_tile instanceof NumHexTile &&
+            hex_tile.getSurfaceType() === TileSurfaceType.REVEALED
+        ) {
+            switch (button) {
+                case 0:
+                case 2:
+                    this.mine_board.hoverOn(hex_tile)
+                    break
+                default:
+                    break
+            }
+        } else {
+            switch (button) {
+                case 0:
+                    if (hex_tile.isClickable()) {
+                        hex_tile.click()
+
+                        if (hex_tile.type === TileType.MINE && hex_tile instanceof MineHexTile) {
+                            this.mine_board.pushDetonatedMine(hex_tile)
+                            this.total_score += this.mine_detonated_penalty
+                            this.updateScoreDisplay()
+                            this.updateMineNumDisplay()
+                            this.judgeFinish()
+                        } else if (hex_tile.type === TileType.NUMBER && hex_tile instanceof NumHexTile) {
+                            this.clickNumHexTile(hex_tile)
+                        } else if (hex_tile.type === TileType.BLANK && hex_tile instanceof BlankHexTile) {
+                            const num_hex_tile_list: NumHexTile[] = this.mine_board.expandBlanks(hex_tile)
+
+                            for (const num_hex_tile of num_hex_tile_list) {
+                                if (num_hex_tile.isClickable()) {
+                                    num_hex_tile.click()
+                                    this.clickNumHexTile(num_hex_tile)
+                                }
+                            }
+
+                            this.updateScoreDisplay()
+                            this.updateMineNumDisplay()
+                            this.judgeFinish()
+                        }
+                    }
+
+                    break
+                case 2:
+                    if (!hex_tile.isFlagSettable()) { return }
+
+                    if (hex_tile.getSurfaceType() === TileSurfaceType.FLAG) {
+                        hex_tile.unsetFlag()
+                        this.mine_board.marked_mine_cnt -= 1
+                    } else if (hex_tile.isClickable()) {
+                        hex_tile.setFlag()
+                        this.mine_board.marked_mine_cnt += 1
+                    }
+
+                    this.updateMineNumDisplay()
+                    this.judgeFinish()
+
+                    break
+                default:
+                    break
+            }
         }
     }
 
     bindHexTileMouseUpEvent(hex_tile: AbstractHexTile, button: number) {
         if (
             hex_tile.getSurfaceType() !== TileSurfaceType.REVEALED ||
-            hex_tile.type !== TileType.NUMBER
+            !(hex_tile.type === TileType.NUMBER && hex_tile instanceof NumHexTile)
         ) { return }
 
         switch (button) {
             case 0:
             case 2:
                 if (this.mine_board.isHexTileHoverCenter(hex_tile.getId())) {
-                    this.mine_board.releaseHover(hex_tile.getId())
-                    this.mine_board.infer(hex_tile.getId())
+                    this.mine_board.releaseHover(hex_tile)
+                    this.mine_board.infer(hex_tile)
                 }
                 break
             default:
@@ -199,14 +298,14 @@ class Game {
     bindHexTileMouseLeaveEvent(hex_tile: AbstractHexTile, button: number) {
         if (
             hex_tile.getSurfaceType() !== TileSurfaceType.REVEALED ||
-            hex_tile.type !== TileType.NUMBER
+            !(hex_tile.type === TileType.NUMBER && hex_tile instanceof NumHexTile)
         ) { return }
 
         switch (button) {
             case 0:
             case 2:
                 if (this.mine_board.isHexTileHoverCenter(hex_tile.getId())) {
-                    this.mine_board.releaseHover(hex_tile.getId())
+                    this.mine_board.releaseHover(hex_tile)
                 }
                 break
             default:
@@ -214,18 +313,12 @@ class Game {
         }
     }
 
-    processAfterFirstClick(origin_hex_tile_id: string) {
-        this.mine_board.genMines(this.mine_set_num, origin_hex_tile_id)
-        this.mine_board.markNum()
-        this.initTimers()
-    }
-
     bindHexTileEvents() {
         for (const hex_tile of this.mine_board.getHexTiles()) {
             const hex_tile_elm = hex_tile.getElm()
 
-            hex_tile_elm.addEventListener('mousedown', () => {
-                this.bindHexTileMouseDownEvent(hex_tile)
+            hex_tile_elm.addEventListener('mousedown', (evt: MouseEvent) => {
+                this.bindHexTileMouseDownEvent(hex_tile, evt.button)
             })
             hex_tile_elm.addEventListener('mouseup', (evt: MouseEvent) => {
                 this.bindHexTileMouseUpEvent(hex_tile, evt.button)
@@ -233,19 +326,6 @@ class Game {
             hex_tile_elm.addEventListener('mouseleave', (evt: MouseEvent) => {
                 this.bindHexTileMouseLeaveEvent(hex_tile, evt.button)
             })
-        }
-    }
-
-    calcTimeReward() {
-        const time_lim_tick_num: number = this.cur_time_lim / this.tick_interval
-        const tick_per_second: number = 1000 / this.tick_interval
-
-        if (this.cur_tick < time_lim_tick_num) {
-            this.total_score += Math.ceil(
-                Math.abs(
-                    Math.floor(time_lim_tick_num / tick_per_second) - Math.floor(this.cur_tick / tick_per_second)
-                ) * this.time_reward_multiplier
-            )
         }
     }
 
@@ -264,26 +344,12 @@ class Game {
         this.bindHexTileEvents()
     }
 
-    clearLevel() {
-        this.clearTimers()
-        this.init()
-    }
-
-    judgeFinish() {
-        if (this.mine_board.getRevealedHexTileNum() === this.mine_board.getHexTileNum() - this.mine_board.getMineNum()) {
-            this.total_score += (this.mine_board.getMineNum() - this.mine_board.getDetonatedMineNum()) * this.mine_swept_reward
-            this.calcTimeReward()
-            this.updateScoreDisplay()
-            this.updateMineNumDisplay()
-            this.clearLevel()
-        }
-    }
-
     flyLeci() {
         const LECI_IMG_LIST: string[] = [LECI_IMG_0, LECI_IMG_1, LECI_IMG_2, LECI_IMG_3]
         const leci_elm: HTMLImageElement = document.querySelector<HTMLImageElement>('#leci')!
-        let leci_cnt: number = 0
-        let cnt_pos: number = 1
+        let leci_tick_cnt: number = 0
+        let pos_tick_cnt: number = 1
+        let total_pos_tick_cnt: number = 0
         const pos_dict: { left_list: number[], top_list: number[], angle_list: number[] } = {
             left_list: [0, 700, 1300, 700],
             top_list: [500, 1000, 500, 0],
@@ -291,19 +357,26 @@ class Game {
         }
 
         const leci_timer: number = window.setInterval(() => {
-            leci_elm.src = LECI_IMG_LIST[leci_cnt]
-            leci_cnt += 1
-            leci_cnt %= 4
+            leci_elm.src = LECI_IMG_LIST[leci_tick_cnt]
+            leci_tick_cnt += 1
+            leci_tick_cnt %= 4
+
         }, 20)
-        const leci_timer2: number = window.setInterval(() => {
+        const pos_timer: number = window.setInterval(() => {
             leci_elm.removeAttribute('style')
-            leci_elm.style.left = `${pos_dict.left_list[cnt_pos]}px`
-            leci_elm.style.top = `${pos_dict.top_list[cnt_pos]}px`
-            leci_elm.style.transform = `rotate(${pos_dict.angle_list[cnt_pos]}deg)`
-            cnt_pos += 4
-            cnt_pos %= 4
+            leci_elm.style.left = `${pos_dict.left_list[pos_tick_cnt]}px`
+            leci_elm.style.top = `${pos_dict.top_list[pos_tick_cnt]}px`
+            leci_elm.style.transform = `rotate(${pos_dict.angle_list[pos_tick_cnt]}deg)`
+            pos_tick_cnt += 1
+            pos_tick_cnt %= 4
+            total_pos_tick_cnt += 1
+
+            if (total_pos_tick_cnt === 4 * 10) {
+                window.clearInterval(leci_timer)
+                window.clearInterval(pos_timer)
+            }
         }, 3000)
     }
 }
 
-export { Game }
+export { RatMineGame as Game }
