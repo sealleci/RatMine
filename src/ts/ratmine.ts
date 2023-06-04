@@ -3,7 +3,7 @@ import LECI_IMG_1 from '@/assets/img/leci_1.svg'
 import LECI_IMG_2 from '@/assets/img/leci_2.svg'
 import LECI_IMG_3 from '@/assets/img/leci_3.svg'
 import { MineBoard } from '@/ts/board.ts'
-import { AbstractMovingRat, RatType, genMovingRat } from '@/ts/enemy.ts'
+import { AbstractMovingRat, RatType, createMovingRat } from '@/ts/enemy.ts'
 import { AbstractHexTile, BlankHexTile, HexTileHint, MineHexTile, NumHexTile, TileSurfaceType, TileType } from '@/ts/tile.ts'
 import { convertTicksToTime, rollRange } from '@/ts/util.ts'
 
@@ -101,13 +101,60 @@ class RatMineGame {
         }
     }
 
-    tick() {
+
+    private hookOnClickingNumHexTile(num_hex_tile: NumHexTile) {
+        this.mine_board.pushRevealedHexTile(num_hex_tile)
+        this.total_score += num_hex_tile.num * this.number_hex_tile_reward_multiplier + this.blank_hex_tile_reward
+        this.updateScoreDisplay()
+        this.judgeFinish()
+    }
+
+    private hookOnClickingHexTile(hex_tile: AbstractHexTile) {
+        if (hex_tile.isClickable()) {
+            hex_tile.click()
+
+            if (hex_tile.type === TileType.MINE && hex_tile instanceof MineHexTile) {
+                this.mine_board.pushDetonatedMine(hex_tile)
+                this.total_score += this.mine_detonated_penalty
+                this.updateScoreDisplay()
+                this.updateMineNumDisplay()
+                this.judgeFinish()
+            } else if (hex_tile.type === TileType.NUMBER && hex_tile instanceof NumHexTile) {
+                this.hookOnClickingNumHexTile(hex_tile)
+            } else if (hex_tile.type === TileType.BLANK && hex_tile instanceof BlankHexTile) {
+                const num_hex_tile_list: NumHexTile[] = this.mine_board.expandBlanks(hex_tile)
+
+                for (const num_hex_tile of num_hex_tile_list) {
+                    if (num_hex_tile.isClickable()) {
+                        num_hex_tile.click()
+                        this.hookOnClickingNumHexTile(num_hex_tile)
+                    }
+                }
+
+                this.updateScoreDisplay()
+                this.updateMineNumDisplay()
+                this.judgeFinish()
+            }
+        }
+    }
+
+    private hookOnUnsettingFlag(hex_tile: AbstractHexTile) {
+        hex_tile.unsetFlag()
+        this.mine_board.marked_mine_cnt -= 1
+    }
+
+    private hookOnSettingFlag(hex_tile: AbstractHexTile) {
+        hex_tile.setFlag()
+        this.mine_board.marked_mine_cnt += 1
+    }
+
+    private tick() {
         if (this.cur_tick % Math.floor(1000 / this.tick_interval) === 0) {
             this.updateTimeDisplay()
         }
 
         if (this.cur_tick % Math.floor((this.hint_gen_interval - this.hint_gen_interval_compensation) / this.tick_interval) === 0) {
-            this.mine_board.genHint()
+            this.mine_board.createHint()
         }
 
         if (
@@ -118,9 +165,9 @@ class RatMineGame {
             let new_moving_rat: AbstractMovingRat | null = null
 
             if (rnd <= 9) {
-                new_moving_rat = genMovingRat(RatType.LIL_RAT, this.mine_board.selectTargetHexTiles(false))
+                new_moving_rat = createMovingRat(RatType.LIL_RAT, this.mine_board.selectTargetHexTiles(false))
             } else {
-                new_moving_rat = genMovingRat(RatType.BIG_RAT, this.mine_board.selectTargetHexTiles(true))
+                new_moving_rat = createMovingRat(RatType.BIG_RAT, this.mine_board.selectTargetHexTiles(true))
             }
 
             if (new_moving_rat) {
@@ -135,19 +182,26 @@ class RatMineGame {
         this.cur_tick += 1
     }
 
-    tickMovingRats() {
+    private tickMovingRats() {
         if (this.moving_rat_list.length !== 0) { return }
 
         for (let i = this.moving_rat_list.length - 1; i >= 0; i -= 1) {
             this.moving_rat_list[i].run(this.moving_rat_timer_tick_interval)
 
             if (this.moving_rat_list[i].isDone()) {
+                for (const target_hex_tile of this.moving_rat_list[i].getTargetHexTileList()) {
+                    if (target_hex_tile.getSurfaceType() === TileSurfaceType.FLAG) {
+                        this.hookOnUnsettingFlag(target_hex_tile)
+                    }
+
+                    this.hookOnClickingHexTile(target_hex_tile)
+                }
                 this.moving_rat_list.splice(i, 1)
             }
         }
     }
 
-    tickHints() {
+    private tickHints() {
         if (this.hint_list.length === 0) { return }
 
         for (let i = this.hint_list.length - 1; i >= 0; i -= 1) {
@@ -199,14 +253,7 @@ class RatMineGame {
         this.initTimers()
     }
 
-    private clickNumHexTile(num_hex_tile: NumHexTile) {
-        this.mine_board.pushRevealedHexTile(num_hex_tile)
-        this.total_score += num_hex_tile.num * this.number_hex_tile_reward_multiplier + this.blank_hex_tile_reward
-        this.updateScoreDisplay()
-        this.judgeFinish()
-    }
-
-    bindHexTileMouseDownEvent(hex_tile: AbstractHexTile, button: number) {
+    private bindHexTileMouseDownEvent(hex_tile: AbstractHexTile, button: number) {
         if (this.mine_board.isBlankBoard()) {
             this.processAfterFirstClick(hex_tile)
         }
@@ -227,43 +274,16 @@ class RatMineGame {
         } else {
             switch (button) {
                 case 0:
-                    if (hex_tile.isClickable()) {
-                        hex_tile.click()
-
-                        if (hex_tile.type === TileType.MINE && hex_tile instanceof MineHexTile) {
-                            this.mine_board.pushDetonatedMine(hex_tile)
-                            this.total_score += this.mine_detonated_penalty
-                            this.updateScoreDisplay()
-                            this.updateMineNumDisplay()
-                            this.judgeFinish()
-                        } else if (hex_tile.type === TileType.NUMBER && hex_tile instanceof NumHexTile) {
-                            this.clickNumHexTile(hex_tile)
-                        } else if (hex_tile.type === TileType.BLANK && hex_tile instanceof BlankHexTile) {
-                            const num_hex_tile_list: NumHexTile[] = this.mine_board.expandBlanks(hex_tile)
-
-                            for (const num_hex_tile of num_hex_tile_list) {
-                                if (num_hex_tile.isClickable()) {
-                                    num_hex_tile.click()
-                                    this.clickNumHexTile(num_hex_tile)
-                                }
-                            }
-
-                            this.updateScoreDisplay()
-                            this.updateMineNumDisplay()
-                            this.judgeFinish()
-                        }
-                    }
-
+                    this.hookOnClickingHexTile(hex_tile)
                     break
                 case 2:
                     if (!hex_tile.isFlagSettable()) { return }
 
                     if (hex_tile.getSurfaceType() === TileSurfaceType.FLAG) {
-                        hex_tile.unsetFlag()
-                        this.mine_board.marked_mine_cnt -= 1
+                        this.hookOnUnsettingFlag(hex_tile)
                     } else if (hex_tile.isClickable()) {
-                        hex_tile.setFlag()
-                        this.mine_board.marked_mine_cnt += 1
+                        this.hookOnSettingFlag(hex_tile)
+
                     }
 
                     this.updateMineNumDisplay()
@@ -276,7 +296,7 @@ class RatMineGame {
         }
     }
 
-    bindHexTileMouseUpEvent(hex_tile: AbstractHexTile, button: number) {
+    private bindHexTileMouseUpEvent(hex_tile: AbstractHexTile, button: number) {
         if (
             hex_tile.getSurfaceType() !== TileSurfaceType.REVEALED ||
             !(hex_tile.type === TileType.NUMBER && hex_tile instanceof NumHexTile)
@@ -295,7 +315,7 @@ class RatMineGame {
         }
     }
 
-    bindHexTileMouseLeaveEvent(hex_tile: AbstractHexTile, button: number) {
+    private bindHexTileMouseLeaveEvent(hex_tile: AbstractHexTile, button: number) {
         if (
             hex_tile.getSurfaceType() !== TileSurfaceType.REVEALED ||
             !(hex_tile.type === TileType.NUMBER && hex_tile instanceof NumHexTile)
@@ -313,7 +333,7 @@ class RatMineGame {
         }
     }
 
-    bindHexTileEvents() {
+    private bindHexTileEvents() {
         for (const hex_tile of this.mine_board.getHexTiles()) {
             const hex_tile_elm = hex_tile.getElm()
 
@@ -379,4 +399,4 @@ class RatMineGame {
     }
 }
 
-export { RatMineGame as Game }
+export { RatMineGame }

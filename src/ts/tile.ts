@@ -255,8 +255,8 @@ class HighlightHexTile {
 class HexTileList<T extends AbstractHexTile = AbstractHexTile> implements Iterable<T> {
     private items: T[]
 
-    constructor() {
-        this.items = []
+    constructor(value_list: T[] = []) {
+        this.items = value_list
     }
 
     push(value: T) {

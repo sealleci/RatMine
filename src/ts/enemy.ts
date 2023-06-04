@@ -2,7 +2,7 @@ import BIG_RAT_IMG from '@/assets/img/big_rat.svg'
 import LIL_RAT_IMG from '@/assets/img/lil_rat.svg'
 import { PlaneVector } from "@/ts/geometry.ts"
 import { calcRotationAngle } from '@/ts/math.ts'
-import { AbstractHexTile, HighlightHexTile, TileSurfaceType } from '@/ts/tile.ts'
+import { AbstractHexTile, BlankHexTile, HexTileList, HighlightHexTile, TileSurfaceType } from '@/ts/tile.ts'
 import { rollRange } from '@/ts/util.ts'
 
 enum RatType {
@@ -24,7 +24,7 @@ abstract class AbstractMovingRat extends AbstractRat {
     protected speed: number
     protected target_hex_tile_num: number
     protected size_multiplier: number
-    protected target_hex_tile_list: AbstractHexTile[]
+    protected target_hex_tile_list: HexTileList
     protected readonly origin_pos: PlaneVector
     protected highlight_hex_tile_list: HighlightHexTile[]
     protected readonly elm: HTMLElement
@@ -52,10 +52,10 @@ abstract class AbstractMovingRat extends AbstractRat {
         this.required_click_cnt = required_click_cnt
         this.target_hex_tile_num = target_hex_tile_num
         this.size_multiplier = size_multiplier
-        this.target_hex_tile_list = target_hex_tile_list
+        this.target_hex_tile_list = new HexTileList(target_hex_tile_list)
         this.origin_pos = origin_pos
         this.highlight_hex_tile_list = highlight_hex_tile_list
-        this.center_hex_tile = this.target_hex_tile_list[0]
+        this.center_hex_tile = this.target_hex_tile_list.getByIdx(0) ?? new BlankHexTile(0, 0, 0, 0, 0, 0)
         this.cur_tick = 0
         this.is_done = false
         this.prev_click_cnt = -1
@@ -89,21 +89,12 @@ abstract class AbstractMovingRat extends AbstractRat {
         return this.is_done
     }
 
-    onClick() {
-        this.cur_click_cnt += 1
+    getTargetHexTileList(): AbstractHexTile[] {
+        return this.target_hex_tile_list.clone()
     }
 
-    revealTargetHexTiles() {
-        for (const target_hex_tile of this.target_hex_tile_list) {
-            if (target_hex_tile.getSurfaceType() === TileSurfaceType.FLAG) {
-                target_hex_tile.unsetFlag()
-            }
-
-            if (target_hex_tile.isClickable()) {
-                target_hex_tile.click()
-            }
-        }
-
+    onClick() {
+        this.cur_click_cnt += 1
     }
 
     removeHighlightHexTiles() {
@@ -164,7 +155,6 @@ abstract class AbstractMovingRat extends AbstractRat {
         }
 
         if (this.isArrived(cur_pos)) {
-            this.revealTargetHexTiles()
             this.is_done = true
         }
 
@@ -206,7 +196,7 @@ class BigRat extends AbstractMovingRat {
     }
 }
 
-function genMovingRat(type: RatType, target_hex_tile_list: AbstractHexTile[]): AbstractMovingRat | null {
+function createMovingRat(type: RatType, target_hex_tile_list: AbstractHexTile[]): AbstractMovingRat | null {
     let new_moving_rat: AbstractMovingRat | null = null
 
     function getOriginPos(): PlaneVector {
@@ -252,4 +242,4 @@ function genMovingRat(type: RatType, target_hex_tile_list: AbstractHexTile[]): A
     return new_moving_rat
 }
 
-export { AbstractMovingRat, RatType, genMovingRat }
+export { AbstractMovingRat, RatType, createMovingRat }

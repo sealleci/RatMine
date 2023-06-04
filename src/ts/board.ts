@@ -52,8 +52,6 @@ class MineBoard {
         return this.elm
     }
 
-    clear() { }
-
     init() {
         this.hex_tile_list.clear()
         this.mine_hex_tile_list.clear()
@@ -494,7 +492,7 @@ class MineBoard {
         }
     }
 
-    genHint(): HexTileHint | null {
+    createHint(): HexTileHint | null {
         const rnd_list: number[] = []
 
         for (let i = 0; i < this.mine_hex_tile_list.getLen(); i += 1) {
