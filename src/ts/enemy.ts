@@ -2,7 +2,7 @@ import BIG_RAT_IMG from '@/assets/img/big_rat.svg'
 import LIL_RAT_IMG from '@/assets/img/lil_rat.svg'
 import { PlaneVector } from "@/ts/geometry.ts"
 import { calcRotationAngle } from '@/ts/math.ts'
-import { AbstractHexTile, BlankHexTile, HexTileList, HighlightHexTile, TileSurfaceType } from '@/ts/tile.ts'
+import { AbstractHexTile, BlankHexTile, HexTileList, HighlightHexTile, MineHexTile, NumHexTile, TileSurfaceType, TileType } from '@/ts/tile.ts'
 import { rollRange } from '@/ts/util.ts'
 
 enum RatType {
@@ -243,3 +243,4 @@ function createMovingRat(type: RatType, target_hex_tile_list: AbstractHexTile[])
 }
 
 export { AbstractMovingRat, RatType, createMovingRat }
+

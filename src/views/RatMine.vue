@@ -1,11 +1,11 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue'
+
+onMounted(() => { })
+onUnmounted(() => { })
 </script>
 
 <template>
-    <div id="menu">
-        <div id="sub-menus">
-        </div>
-    </div>
     <div id="level" style="display:none;">
         <div id="head-bar">
             <div id="level-bar">

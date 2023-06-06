@@ -4,7 +4,8 @@ import LECI_IMG_2 from '@/assets/img/leci_2.svg'
 import LECI_IMG_3 from '@/assets/img/leci_3.svg'
 import { MineBoard } from '@/ts/board.ts'
 import { AbstractMovingRat, RatType, createMovingRat } from '@/ts/enemy.ts'
-import { AbstractHexTile, BlankHexTile, HexTileHint, MineHexTile, NumHexTile, TileSurfaceType, TileType } from '@/ts/tile.ts'
+import { HEX_DIRECTION_LIST, HexVector } from '@/ts/geometry.ts'
+import { AbstractHexTile, BlankHexTile, HexTileHint, HexTileList, MineHexTile, NumHexTile, TileSurfaceType, TileType } from '@/ts/tile.ts'
 import { convertTicksToTime, rollRange } from '@/ts/util.ts'
 
 class RatMineGame {
@@ -101,53 +102,116 @@ class RatMineGame {
         }
     }
 
+    private unsetFlag(hex_tile: AbstractHexTile) {
+        hex_tile.unsetFlag()
+        this.mine_board.marked_mine_cnt -= 1
+    }
 
-    private hookOnClickingNumHexTile(num_hex_tile: NumHexTile) {
+    private setFlag(hex_tile: AbstractHexTile) {
+        hex_tile.setFlag()
+        this.mine_board.marked_mine_cnt += 1
+    }
+
+    private clickNumHexTile(num_hex_tile: NumHexTile) {
+        num_hex_tile.click()
         this.mine_board.pushRevealedHexTile(num_hex_tile)
         this.total_score += num_hex_tile.num * this.number_hex_tile_reward_multiplier + this.blank_hex_tile_reward
         this.updateScoreDisplay()
         this.judgeFinish()
     }
 
-    private hookOnClickingHexTile(hex_tile: AbstractHexTile) {
-        if (hex_tile.isClickable()) {
-            hex_tile.click()
+    expandBlanks(origin_hex_tile: AbstractHexTile): number {
+        const hex_tile_queue: AbstractHexTile[] = []
+        const hex_tile_visited_dict: Record<string, boolean> = {}
+        let blank_hex_tile_cnt: number = 0
 
-            if (hex_tile.type === TileType.MINE && hex_tile instanceof MineHexTile) {
-                this.mine_board.pushDetonatedMine(hex_tile)
-                this.total_score += this.mine_detonated_penalty
-                this.updateScoreDisplay()
-                this.updateMineNumDisplay()
-                this.judgeFinish()
-            } else if (hex_tile.type === TileType.NUMBER && hex_tile instanceof NumHexTile) {
-                this.hookOnClickingNumHexTile(hex_tile)
-            } else if (hex_tile.type === TileType.BLANK && hex_tile instanceof BlankHexTile) {
-                const [clicked_blank_hex_tile_num, unhandled_num_hex_tile_list] = this.mine_board.expandBlanks(hex_tile)
+        function isHexTileVisited(hex_tile_id: string): boolean {
+            if (hex_tile_id in hex_tile_visited_dict) {
+                return hex_tile_visited_dict[hex_tile_id]
+            } else {
+                hex_tile_visited_dict[hex_tile_id] = false
+                return false
+            }
+        }
 
-                this.total_score += clicked_blank_hex_tile_num * this.blank_hex_tile_reward
+        hex_tile_queue.push(origin_hex_tile)
+        hex_tile_visited_dict[origin_hex_tile.getId()] = true
 
-                for (const num_hex_tile of unhandled_num_hex_tile_list) {
-                    if (num_hex_tile.isClickable()) {
-                        num_hex_tile.click()
-                        this.hookOnClickingNumHexTile(num_hex_tile)
-                    }
+        while (hex_tile_queue.length !== 0) {
+            let cur_hex_tile: AbstractHexTile = hex_tile_queue.shift()!
+
+            if (
+                cur_hex_tile.getSurfaceType() === TileSurfaceType.REVEALED
+            ) { // Skip the revealed hex tiles.
+                continue
+            } else {
+                if (cur_hex_tile.isHaveFlag()) { // If the hex tile has a flag, unset the flag.
+                    this.unsetFlag(cur_hex_tile)
                 }
 
-                this.updateScoreDisplay()
-                this.updateMineNumDisplay()
-                this.judgeFinish()
+                if (cur_hex_tile.type === TileType.NUMBER && cur_hex_tile instanceof NumHexTile) { // If the hex tile is a number hex tile.
+                    this.clickNumHexTile(cur_hex_tile)
+                    continue
+                } else { // If the hex tile is a blank hex tile.
+                    cur_hex_tile.click(() => { })
+                    this.mine_board.pushRevealedHexTile(cur_hex_tile)
+                    blank_hex_tile_cnt += 1
+                }
             }
+
+            // Iterate the 6 directions from the current hex tile.
+            for (const hex_direction of HEX_DIRECTION_LIST) {
+                const cur_hex_pos: HexVector = cur_hex_tile.hex_coord.plus(hex_direction)
+
+                if (!isHexTileVisited(cur_hex_pos.getId())) {
+                    const tmp_hex_tile: AbstractHexTile | undefined = this.mine_board.findHexTile(cur_hex_pos.getId())
+
+                    // If this hex tile is not a mine hex tile.
+                    if (tmp_hex_tile && tmp_hex_tile.type !== TileType.MINE) {
+                        hex_tile_visited_dict[tmp_hex_tile.getId()] = true
+                        hex_tile_queue.push(tmp_hex_tile)
+                    }
+                }
+            }
+        }
+
+        return blank_hex_tile_cnt
+    }
+
+    private clickBlankHexTile(blank_hex_tile: BlankHexTile) {
+        let clicked_blank_hex_tile_num: number = 0
+
+        blank_hex_tile.click()
+        clicked_blank_hex_tile_num = this.expandBlanks(blank_hex_tile)
+        this.total_score += clicked_blank_hex_tile_num * this.blank_hex_tile_reward
+        this.updateScoreDisplay()
+        this.updateMineNumDisplay()
+        this.judgeFinish()
+    }
+
+    private clickMineHexTile(mine_hex_tile: MineHexTile) {
+        mine_hex_tile.click()
+        this.mine_board.pushDetonatedMine(mine_hex_tile)
+        this.total_score += this.mine_detonated_penalty
+        this.updateScoreDisplay()
+        this.updateMineNumDisplay()
+        this.judgeFinish()
+    }
+
+    private clickHexTile(hex_tile: AbstractHexTile) {
+        if (hex_tile.type === TileType.BLANK && hex_tile instanceof BlankHexTile) {
+            this.clickBlankHexTile(hex_tile)
+        } else if (hex_tile.type === TileType.NUMBER && hex_tile instanceof NumHexTile) {
+            this.clickNumHexTile(hex_tile)
+        } else if (hex_tile.type === TileType.MINE && hex_tile instanceof MineHexTile) {
+            this.clickMineHexTile(hex_tile)
         }
     }
 
-    private hookOnUnsettingFlag(hex_tile: AbstractHexTile) {
-        hex_tile.unsetFlag()
-        this.mine_board.marked_mine_cnt -= 1
-    }
+    private clickMovingRat(moving_rat: AbstractMovingRat | null) {
+        if (!moving_rat) { return }
 
-    private hookOnSettingFlag(hex_tile: AbstractHexTile) {
-        hex_tile.setFlag()
-        this.mine_board.marked_mine_cnt += 1
+        moving_rat.onClick()
     }
 
     private tick() {
@@ -174,7 +238,7 @@ class RatMineGame {
 
             if (new_moving_rat) {
                 new_moving_rat.getElm().addEventListener('click', () => {
-                    new_moving_rat?.onClick()
+                    this.clickMovingRat(new_moving_rat)
                 })
                 this.moving_rat_list.push(new_moving_rat)
                 this.mine_board.getElm().appendChild(new_moving_rat.getElm())
@@ -192,12 +256,13 @@ class RatMineGame {
 
             if (this.moving_rat_list[i].isDone()) {
                 for (const target_hex_tile of this.moving_rat_list[i].getTargetHexTileList()) {
-                    if (target_hex_tile.getSurfaceType() === TileSurfaceType.FLAG) {
-                        this.hookOnUnsettingFlag(target_hex_tile)
+                    if (target_hex_tile.isHaveFlag()) {
+                        this.unsetFlag(target_hex_tile)
                     }
 
-                    this.hookOnClickingHexTile(target_hex_tile)
+                    this.clickHexTile(target_hex_tile)
                 }
+
                 this.moving_rat_list.splice(i, 1)
             }
         }
@@ -264,7 +329,7 @@ class RatMineGame {
             hex_tile.type === TileType.NUMBER &&
             hex_tile instanceof NumHexTile &&
             hex_tile.getSurfaceType() === TileSurfaceType.REVEALED
-        ) {
+        ) { // Hover on a number hex tile.
             switch (button) {
                 case 0:
                 case 2:
@@ -273,19 +338,18 @@ class RatMineGame {
                 default:
                     break
             }
-        } else {
+        } else { // Click on a hex tile.
             switch (button) {
                 case 0:
-                    this.hookOnClickingHexTile(hex_tile)
+                    this.clickHexTile(hex_tile)
                     break
                 case 2:
                     if (!hex_tile.isFlagSettable()) { return }
 
-                    if (hex_tile.getSurfaceType() === TileSurfaceType.FLAG) {
-                        this.hookOnUnsettingFlag(hex_tile)
+                    if (hex_tile.isHaveFlag()) {
+                        this.unsetFlag(hex_tile)
                     } else if (hex_tile.isClickable()) {
-                        this.hookOnSettingFlag(hex_tile)
-
+                        this.setFlag(hex_tile)
                     }
 
                     this.updateMineNumDisplay()
@@ -309,18 +373,7 @@ class RatMineGame {
             case 2:
                 if (this.mine_board.isHexTileHoverCenter(hex_tile.getId())) {
                     this.mine_board.releaseHover(hex_tile)
-                    const [unhandled_hex_tile_list, flag_unhandled_hex_tile_list] = this.mine_board.infer(hex_tile)
-
-                    for (const unhandled_hex_tile of unhandled_hex_tile_list) {
-                        this.hookOnClickingHexTile(unhandled_hex_tile)
-                    }
-
-                    for (const flag_unset_hex_tile of flag_unhandled_hex_tile_list) {
-                        this.hookOnSettingFlag(flag_unset_hex_tile)
-                    }
-
-                    this.updateMineNumDisplay()
-                    this.judgeFinish()
+                    this.infer(hex_tile)
                 }
                 break
             default:
@@ -359,6 +412,75 @@ class RatMineGame {
             hex_tile_elm.addEventListener('mouseleave', (evt: MouseEvent) => {
                 this.bindHexTileMouseLeaveEvent(hex_tile, evt.button)
             })
+        }
+    }
+
+    /**
+     * Auto set flags and click over the hex tiles that can be inferred.
+     */
+    infer(origin_hex_tile: NumHexTile) {
+        const inferred_hex_tile_list: HexTileList = new HexTileList()
+        let predicted_mine_cnt: number = 0 // The number of predicted adjacent mines.
+
+        for (const hex_direction of HEX_DIRECTION_LIST) {
+            const tmp_hex_pos: HexVector = origin_hex_tile.hex_coord.plus(hex_direction)
+            const tmp_hex_tile: AbstractHexTile | undefined = this.mine_board.findHexTile(tmp_hex_pos.getId())
+
+            if (!tmp_hex_tile) { continue }
+
+            if (tmp_hex_tile.isClickable()) { // If the hex tile is clickable, add it to the inferred hex tile list.
+                inferred_hex_tile_list.push(tmp_hex_tile)
+            } else if (
+                tmp_hex_tile.isHaveFlag() ||
+                (tmp_hex_tile.getSurfaceType() === TileSurfaceType.REVEALED &&
+                    tmp_hex_tile.type === TileType.MINE)
+            ) {  // If the hex tile has a flag or is a revealed mine hex tile, increase the number of predicted mines.
+                predicted_mine_cnt += 1
+            }
+        }
+
+        if (predicted_mine_cnt === origin_hex_tile.num) {
+            // If the number of predicted mines equals to the number on the origin hex tile.
+            // Click the inferred hex tiles.
+            let is_click_mine: boolean = false
+
+            for (const inferred_hex_tile of inferred_hex_tile_list) {
+                if (!inferred_hex_tile.isClickable()) { continue }
+
+                if (inferred_hex_tile.type === TileType.MINE) {
+                    is_click_mine = true
+                }
+
+                this.clickHexTile(inferred_hex_tile)
+            }
+
+            if (is_click_mine) { // If the inferred hex tile list contains a mine hex tile.
+                const flag_hex_tile_list: HexTileList = new HexTileList()
+
+                for (const hex_direction of HEX_DIRECTION_LIST) {
+                    const tmp_hex_pos: HexVector = origin_hex_tile.hex_coord.plus(hex_direction)
+                    const tmp_hex_tile: AbstractHexTile | undefined = this.mine_board.findHexTile(tmp_hex_pos.getId())
+
+                    if (!tmp_hex_tile) { continue }
+
+                    if (tmp_hex_tile.isHaveFlag()) {
+                        // If the hex tile has a flag, add it to the flag hex tile list.
+                        flag_hex_tile_list.push(tmp_hex_tile)
+                    }
+                }
+
+                for (const flag_hex_tile of flag_hex_tile_list) { // Reveal the wrong flag hex tiles.
+                    flag_hex_tile.revealWrong()
+                    this.mine_board.marked_mine_cnt -= 1
+                    this.mine_board.pushRevealedHexTile(flag_hex_tile)
+                }
+            }
+        } else if (predicted_mine_cnt + inferred_hex_tile_list.getLen() === origin_hex_tile.num) {
+            // If the number of predicted mines plus the number of inferred hex tiles equals to 
+            // the number on the origin hex tile. Set flags on the inferred hex tiles.
+            for (const inferred_hex_tile of inferred_hex_tile_list) {
+                this.setFlag(inferred_hex_tile)
+            }
         }
     }
 

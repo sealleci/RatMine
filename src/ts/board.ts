@@ -98,7 +98,7 @@ class MineBoard {
         const flag_hex_tile_list: AbstractHexTile[] = []
 
         for (const hex_tile of this.hex_tile_list) {
-            if (hex_tile.getSurfaceType() === TileSurfaceType.FLAG) {
+            if (hex_tile.isHaveFlag()) {
                 flag_hex_tile_list.push(hex_tile)
             }
         }
@@ -282,68 +282,6 @@ class MineBoard {
         }
     }
 
-    expandBlanks(origin_hex_tile: AbstractHexTile): [number, NumHexTile[]] {
-        const hex_tile_queue: AbstractHexTile[] = []
-        const hex_tile_visited_dict: Record<string, boolean> = {}
-        const unhandled_num_hex_tile_list: NumHexTile[] = []
-        let blank_hex_tile_cnt: number = 0
-
-        function isHexTileVisited(hex_tile_id: string): boolean {
-            if (hex_tile_id in hex_tile_visited_dict) {
-                return hex_tile_visited_dict[hex_tile_id]
-            } else {
-                hex_tile_visited_dict[hex_tile_id] = false
-                return false
-            }
-        }
-
-        hex_tile_queue.push(origin_hex_tile)
-        hex_tile_visited_dict[origin_hex_tile.getId()] = true
-
-        while (hex_tile_queue.length !== 0) {
-            let cur_hex_tile: AbstractHexTile = hex_tile_queue.shift()!
-
-            if (
-                cur_hex_tile.getSurfaceType() === TileSurfaceType.REVEALED
-            ) { // Skip the revealed hex tiles.
-                continue
-            } else {
-                if (
-                    cur_hex_tile.getSurfaceType() === TileSurfaceType.FLAG
-                ) { // If the hex tile has a flag, unset the flag.
-                    cur_hex_tile.unsetFlag()
-                    this.marked_mine_cnt -= 1
-                }
-
-                if (cur_hex_tile.type === TileType.NUMBER && cur_hex_tile instanceof NumHexTile) { // If the hex tile is a number hex tile.
-                    unhandled_num_hex_tile_list.push(cur_hex_tile)
-                    continue
-                } else { // If the hex tile is a blank hex tile.
-                    cur_hex_tile.click()
-                    this.revealed_hex_tile_list.push(cur_hex_tile)
-                    blank_hex_tile_cnt += 1
-                }
-            }
-
-            // Iterate the 6 directions from the current hex tile.
-            for (const hex_direction of HEX_DIRECTION_LIST) {
-                const cur_hex_pos: HexVector = cur_hex_tile.hex_coord.plus(hex_direction)
-
-                if (!isHexTileVisited(cur_hex_pos.getId())) {
-                    const tmp_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(cur_hex_pos.getId())
-
-                    // If this hex tile is not a mine hex tile.
-                    if (tmp_hex_tile && tmp_hex_tile.type !== TileType.MINE) {
-                        hex_tile_visited_dict[tmp_hex_tile.getId()] = true
-                        hex_tile_queue.push(tmp_hex_tile)
-                    }
-                }
-            }
-        }
-
-        return [blank_hex_tile_cnt, unhandled_num_hex_tile_list]
-    }
-
     getHoverAdjacentTiles(origin_hex_tile: AbstractHexTile, is_choose_flag_settable: boolean = false): HexTileList {
         const hover_hex_tile_list: HexTileList = new HexTileList()
         const cur_hex_pos: HexVector = origin_hex_tile.hex_coord
@@ -357,7 +295,7 @@ class MineBoard {
                     if (tmp_hex_tile.isClickable()) {
                         hover_hex_tile_list.push(tmp_hex_tile)
                     }
-                } else { // Choose the hex tiles that can be set flag.
+                } else { // Choose the hex tiles that can be set or unset flag.
                     if (tmp_hex_tile.isFlagSettable()) {
                         hover_hex_tile_list.push(tmp_hex_tile)
                     }
@@ -402,79 +340,6 @@ class MineBoard {
         }
     }
 
-    /**
-     * Auto set flags and click over the hex tiles that can be inferred.
-     */
-    infer(origin_hex_tile: NumHexTile): [AbstractHexTile[], AbstractHexTile[]] {
-        const inferred_hex_tile_list: HexTileList = new HexTileList()
-        const unhandled_hex_tile_list: AbstractHexTile[] = []
-        const flag_unhandled_hex_tile_list: AbstractHexTile[] = []
-        let predicted_mine_cnt: number = 0 // The number of predicted adjacent mines.
-
-        for (const hex_direction of HEX_DIRECTION_LIST) {
-            const tmp_hex_pos: HexVector = origin_hex_tile.hex_coord.plus(hex_direction)
-            const tmp_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(tmp_hex_pos.getId())
-
-            if (!tmp_hex_tile) { continue }
-
-            if (tmp_hex_tile.isClickable()) { // If the hex tile is clickable, add it to the inferred hex tile list.
-                inferred_hex_tile_list.push(tmp_hex_tile)
-            } else if (
-                tmp_hex_tile.getSurfaceType() === TileSurfaceType.FLAG ||
-                (tmp_hex_tile.getSurfaceType() === TileSurfaceType.REVEALED &&
-                    tmp_hex_tile.type === TileType.MINE)
-            ) {  // If the hex tile has a flag or is a revealed mine hex tile, increase the number of predicted mines.
-                predicted_mine_cnt += 1
-            }
-        }
-
-        if (predicted_mine_cnt === origin_hex_tile.num) {
-            // If the number of predicted mines equals to the number on the origin hex tile.
-            // Click the inferred hex tiles.
-            let is_click_mine: boolean = false
-
-            for (const inferred_hex_tile of inferred_hex_tile_list) {
-                if (!inferred_hex_tile.isClickable()) { continue }
-
-                if (inferred_hex_tile.type === TileType.MINE) {
-                    is_click_mine = true
-                }
-
-                unhandled_hex_tile_list.push(inferred_hex_tile)
-            }
-
-            if (is_click_mine) { // If the inferred hex tile list contains a mine hex tile.
-                const flag_hex_tile_list: HexTileList = new HexTileList()
-
-                for (const hex_direction of HEX_DIRECTION_LIST) {
-                    const tmp_hex_pos: HexVector = origin_hex_tile.hex_coord.plus(hex_direction)
-                    const tmp_hex_tile: AbstractHexTile | undefined = this.hex_tile_list.getById(tmp_hex_pos.getId())
-
-                    if (!tmp_hex_tile) { continue }
-
-                    if (tmp_hex_tile.getSurfaceType() === TileSurfaceType.FLAG) {
-                        // If the hex tile has a flag, add it to the flag hex tile list.
-                        flag_hex_tile_list.push(tmp_hex_tile)
-                    }
-                }
-
-                for (const flag_hex_tile of flag_hex_tile_list) { // Reveal the wrong flag hex tiles.
-                    flag_hex_tile.revealWrong()
-                    this.marked_mine_cnt -= 1
-                    this.revealed_hex_tile_list.push(flag_hex_tile)
-                }
-            }
-        } else if (predicted_mine_cnt + inferred_hex_tile_list.getLen() === origin_hex_tile.num) {
-            // If the number of predicted mines plus the number of inferred hex tiles equals to 
-            // the number on the origin hex tile. Set flags on the inferred hex tiles.
-            for (const inferred_hex_tile of inferred_hex_tile_list) {
-                flag_unhandled_hex_tile_list.push(inferred_hex_tile)
-            }
-        }
-
-        return [unhandled_hex_tile_list, flag_unhandled_hex_tile_list]
-    }
-
     render() {
         for (const hex_tile of this.hex_tile_list) {
             this.elm.appendChild(hex_tile.getElm())
@@ -489,7 +354,7 @@ class MineBoard {
 
             if (
                 mine_hex_tile &&
-                mine_hex_tile.getSurfaceType() !== TileSurfaceType.FLAG &&
+                !mine_hex_tile.isHaveFlag() &&
                 mine_hex_tile.isClickable()
             ) {
                 rnd_list.push(i)

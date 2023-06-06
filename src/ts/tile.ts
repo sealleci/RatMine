@@ -12,7 +12,6 @@ enum TileType {
 enum TileSurfaceType {
     NORMAL = 'normal',
     REVEALED = 'revealed',
-    FLAG = 'flag',
     VINE = 'vine'
 }
 
@@ -22,6 +21,7 @@ abstract class AbstractHexTile {
     public readonly step: number // The steps from the center hex tile.
     public readonly type: TileType
     protected surface_type: TileSurfaceType
+    protected is_have_flag: boolean // Determine whether the tile has flag or not.
     protected is_vine: boolean // Determine whether the tile has vine or not.
     protected elm: HTMLElement
     static readonly HEX_TILE_RADIUS: number = 26 // The radius length of a hex tile.
@@ -34,6 +34,7 @@ abstract class AbstractHexTile {
         this.step = step
         this.type = TileType.BLANK
         this.surface_type = TileSurfaceType.NORMAL
+        this.is_have_flag = false
         this.is_vine = false
         this.elm = document.createElement('div')
 
@@ -45,7 +46,7 @@ abstract class AbstractHexTile {
         this.elm.setAttribute('hex_tile_id', this.getId())
     }
 
-    abstract click(): void
+    abstract click(callback: () => void): void
 
     reveal() {
         this.surface_type = TileSurfaceType.REVEALED
@@ -64,6 +65,10 @@ abstract class AbstractHexTile {
         return this.is_vine
     }
 
+    isHaveFlag(): boolean {
+        return this.is_have_flag
+    }
+
     getId(): string {
         return this.hex_coord.getId()
     }
@@ -80,10 +85,30 @@ abstract class AbstractHexTile {
         this.elm.textContent = text
     }
 
+    /**
+     * Determine whether the hex tile can be left-clicked to reveal, or be right-clicked to set flag.
+     */
+    isClickable(): boolean {
+        return (this.surface_type === TileSurfaceType.NORMAL ||
+            this.surface_type === TileSurfaceType.VINE) &&
+            !this.is_have_flag
+    }
+
+    /**
+     * Determine whether the hex tile can be right-clicked to unset flag, or be left-clicked to set flag.
+     */
+    isFlagSettable(): boolean {
+        return this.surface_type === TileSurfaceType.NORMAL ||
+            this.surface_type === TileSurfaceType.VINE ||
+            this.is_have_flag
+    }
+
     setFlag() {
+        if (!this.isClickable()) { return }
+
         const img_elm: HTMLImageElement = document.createElement('img')
 
-        this.surface_type = TileSurfaceType.FLAG
+        this.is_have_flag = true
         img_elm.src = FLAG_IMG
         img_elm.style.height = `${AbstractHexTile.HEX_TILE_RADIUS * 1.5}px`
         img_elm.style.width = `${AbstractHexTile.HEX_TILE_RADIUS * 1.5}px`
@@ -91,19 +116,10 @@ abstract class AbstractHexTile {
     }
 
     unsetFlag() {
-        this.surface_type = TileSurfaceType.NORMAL
+        if (!this.is_have_flag) { return }
+
+        this.is_have_flag = false
         removeElmChildren(this.elm)
-    }
-
-    isClickable(): boolean {
-        return this.surface_type === TileSurfaceType.NORMAL ||
-            this.surface_type === TileSurfaceType.VINE
-    }
-
-    isFlagSettable(): boolean {
-        return this.surface_type === TileSurfaceType.NORMAL ||
-            this.surface_type === TileSurfaceType.FLAG ||
-            this.surface_type === TileSurfaceType.VINE
     }
 
     getElm(): HTMLElement {
@@ -122,6 +138,8 @@ class BlankHexTile extends AbstractHexTile {
     }
 
     click() {
+        if (!this.isClickable()) { return }
+
         this.reveal()
         this.setElmText('')
         this.addElmClass('hex-active')
@@ -165,6 +183,8 @@ class NumHexTile extends AbstractHexTile {
     }
 
     click() {
+        if (!this.isClickable()) { return }
+
         this.updateElmText()
         this.elm.classList.add('hex-active')
         this.elm.style.color = NumHexTile.NUM_COLOR_LIST[this.num % 3]
@@ -194,6 +214,8 @@ class MineHexTile extends AbstractHexTile {
     }
 
     click() {
+        if (!this.isClickable()) { return }
+
         const img_elm: HTMLImageElement = document.createElement('img')
 
         img_elm.src = MINE_DETONATED_IMG
